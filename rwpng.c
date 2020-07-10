@@ -40,7 +40,7 @@ typedef png_const_charp png_const_bytep;
 #endif
 
 static void rwpng_error_handler(png_structp png_ptr, png_const_charp msg);
-pngquant_error rwpng_read_image32_cocoa(FILE *infile, uint32_t *width, uint32_t *height, size_t *file_size, rwpng_rgba **image_data);
+pngloss_error rwpng_read_image32_cocoa(FILE *infile, uint32_t *width, uint32_t *height, size_t *file_size, rwpng_rgba **image_data);
 
 
 void rwpng_version_info(FILE *fp)
@@ -58,11 +58,11 @@ void rwpng_version_info(FILE *fp)
 #if PNG_LIBPNG_VER < 10600
     if (strcmp(pngver, "1.3.") < 0) {
         fputs("\nWARNING: Your version of libpng is outdated and may produce corrupted files.\n"
-              "Please recompile pngquant with the current version of libpng (1.6 or later).\n", fp);
+              "Please recompile pngloss with the current version of libpng (1.6 or later).\n", fp);
     } else if (strcmp(pngver, "1.6.") < 0) {
         #if defined(PNG_UNKNOWN_CHUNKS_SUPPORTED)
         fputs("\nWARNING: Your version of libpng is old and has buggy support for custom chunks.\n"
-              "Please recompile pngquant with the current version of libpng (1.6 or later).\n", fp);
+              "Please recompile pngloss with the current version of libpng (1.6 or later).\n", fp);
         #endif
     }
 #endif
@@ -91,7 +91,7 @@ struct rwpng_write_state {
     FILE *outfile;
     png_size_t maximum_file_size;
     png_size_t bytes_written;
-    pngquant_error retval;
+    pngloss_error retval;
 };
 
 static void user_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
@@ -178,7 +178,7 @@ static void rwpng_warning_stderr_handler(png_structp png_ptr, png_const_charp ms
 static void rwpng_warning_silent_handler(png_structp png_ptr, png_const_charp msg) {
 }
 
-static pngquant_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose)
+static pngloss_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose)
 {
     png_structp  png_ptr = NULL;
     png_infop    info_ptr = NULL;
@@ -242,7 +242,7 @@ static pngquant_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainp
         png_set_expand(png_ptr);
         png_set_filler(png_ptr, 65535L, PNG_FILLER_AFTER);
 #else
-        fprintf(stderr, "pngquant readpng:  image is neither RGBA nor GA\n");
+        fprintf(stderr, "pngloss readpng:  image is neither RGBA nor GA\n");
         png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         mainprog_ptr->retval = WRONG_INPUT_COLOR_TYPE;
         return mainprog_ptr->retval;
@@ -268,7 +268,7 @@ static pngquant_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainp
             mainprog_ptr->input_color = RWPNG_GAMA_ONLY;
             mainprog_ptr->output_color = RWPNG_GAMA_ONLY;
         } else {
-            fprintf(stderr, "pngquant readpng:  ignored out-of-range gamma %f\n", gamma);
+            fprintf(stderr, "pngloss readpng:  ignored out-of-range gamma %f\n", gamma);
             mainprog_ptr->input_color = RWPNG_NONE;
             mainprog_ptr->output_color = RWPNG_NONE;
             gamma = 0.45455;
@@ -292,7 +292,7 @@ static pngquant_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainp
     }
 
     if ((mainprog_ptr->rgba_data = malloc(rowbytes * mainprog_ptr->height)) == NULL) {
-        fprintf(stderr, "pngquant readpng:  unable to allocate image data\n");
+        fprintf(stderr, "pngloss readpng:  unable to allocate image data\n");
         png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         return PNG_OUT_OF_MEMORY_ERROR;
     }
@@ -436,11 +436,11 @@ void rwpng_free_image8(png8_image *image)
     image->chunks = NULL;
 }
 
-pngquant_error rwpng_read_image24(FILE *infile, png24_image *out, int strip, int verbose)
+pngloss_error rwpng_read_image24(FILE *infile, png24_image *out, int strip, int verbose)
 {
 #if USE_COCOA
     rwpng_rgba *pixel_data;
-    pngquant_error res = rwpng_read_image32_cocoa(infile, &out->width, &out->height, &out->file_size, &pixel_data);
+    pngloss_error res = rwpng_read_image32_cocoa(infile, &out->width, &out->height, &out->file_size, &pixel_data);
     if (res != SUCCESS) {
         return res;
     }
@@ -459,7 +459,7 @@ pngquant_error rwpng_read_image24(FILE *infile, png24_image *out, int strip, int
 }
 
 
-static pngquant_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_structpp png_ptr_p, png_infopp info_ptr_p, int fast_compression)
+static pngloss_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_structpp png_ptr_p, png_infopp info_ptr_p, int fast_compression)
 {
     /* could also replace libpng warning-handler (final NULL), but no need: */
 
@@ -515,14 +515,14 @@ static void rwpng_set_gamma(png_infop info_ptr, png_structp png_ptr, double gamm
     }
 }
 
-pngquant_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
+pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
 {
     png_structp png_ptr;
     png_infop info_ptr;
 
     if (mainprog_ptr->num_palette > 256) return INVALID_ARGUMENT;
 
-    pngquant_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, mainprog_ptr->fast_compression);
+    pngloss_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, mainprog_ptr->fast_compression);
     if (retval) return retval;
 
     struct rwpng_write_state write_state;
@@ -607,17 +607,46 @@ pngquant_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
     return write_state.retval;
 }
 
-pngquant_error rwpng_write_image24(FILE *outfile, const png24_image *mainprog_ptr)
+pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
 {
     png_structp png_ptr;
     png_infop info_ptr;
 
-    pngquant_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, 0);
+    pngloss_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, 0);
     if (retval) return retval;
 
     png_init_io(png_ptr, outfile);
 
+    struct rwpng_write_state write_state;
+    write_state = (struct rwpng_write_state){
+        .outfile = outfile,
+        .maximum_file_size = mainprog_ptr->maximum_file_size,
+        .retval = SUCCESS,
+    };
+    png_set_write_fn(png_ptr, &write_state, user_write_data, user_flush_data);
+
     rwpng_set_gamma(info_ptr, png_ptr, mainprog_ptr->gamma, mainprog_ptr->output_color);
+
+    struct rwpng_chunk *chunk = mainprog_ptr->chunks;
+    mainprog_ptr->metadata_size = 0;
+    int chunk_num=0;
+    while(chunk) {
+        png_unknown_chunk pngchunk = {
+            .size = chunk->size,
+            .data = chunk->data,
+            .location = chunk->location,
+        };
+        memcpy(pngchunk.name, chunk->name, 5);
+        png_set_unknown_chunks(png_ptr, info_ptr, &pngchunk, 1);
+
+        #if defined(PNG_HAVE_IHDR) && PNG_LIBPNG_VER < 10600
+        png_set_unknown_chunk_location(png_ptr, info_ptr, chunk_num, pngchunk.location ? pngchunk.location : PNG_HAVE_IHDR);
+        #endif
+
+        mainprog_ptr->metadata_size += chunk->size + 12;
+        chunk = chunk->next;
+        chunk_num++;
+    }
 
     png_set_IHDR(png_ptr, info_ptr, mainprog_ptr->width, mainprog_ptr->height,
                  8, PNG_COLOR_TYPE_RGB_ALPHA,

@@ -34,7 +34,7 @@ typedef enum {
     LIBPNG_INIT_ERROR = 35,
     TOO_LARGE_FILE = 98,
     TOO_LOW_QUALITY = 99,
-} pngquant_error;
+} pngloss_error;
 
 typedef struct rwpng_rgba {
   unsigned char r,g,b,a;
@@ -63,6 +63,8 @@ typedef struct {
     uint32_t width;
     uint32_t height;
     size_t file_size;
+    size_t maximum_file_size;
+    size_t metadata_size;
     double gamma;
     unsigned char **row_pointers;
     unsigned char *rgba_data;
@@ -97,9 +99,9 @@ typedef union {
 
 void rwpng_version_info(FILE *fp);
 
-pngquant_error rwpng_read_image24(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose);
-pngquant_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr);
-pngquant_error rwpng_write_image24(FILE *outfile, const png24_image *mainprog_ptr);
+pngloss_error rwpng_read_image24(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose);
+pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr);
+pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr);
 void rwpng_free_image24(png24_image *);
 void rwpng_free_image8(png8_image *);
 
