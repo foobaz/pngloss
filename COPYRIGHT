@@ -1,12 +1,13 @@
 
 pngquant and libimagequant are derived from code by Jef Poskanzer and Greg Roelofs
 licensed under pngquant's original licenses (near the end of this file),
-and contain extensive changes and additions by Kornel Lesiński
+and contain extensive changes and additions by Kornel Lesiński and William MacKay
 licensed under GPL v3 or later.
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-pngquant © 2009-2018 by Kornel Lesiński.
+pngloss © 2020 by William MacKay.
+Based on pngquant © 2009-2018 by Kornel Lesiński.
 
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
@@ -630,7 +631,7 @@ copy of the Program in return for a fee.
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-The quantization and dithering code in pngquant is lifted from Jef Poskanzer's
+The quantization and dithering code in pngloss is lifted from Jef Poskanzer's
 'ppmquant', part of his wonderful PBMPLUS tool suite.
 
 Greg Roelofs hacked it into a (in his words) "slightly cheesy" 'pamquant' back
@@ -646,7 +647,7 @@ you like, as long as you acknowledge its origins.
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-pngquant.c:
+pngloss.c:
 
    © 1989, 1991 by Jef Poskanzer.
 
@@ -659,7 +660,7 @@ pngquant.c:
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-pngquant.c and rwpng.c/h:
+pngloss.c and rwpng.c/h:
 
    © 1997-2002 by Greg Roelofs; based on an idea by Stefan Schneider.
 

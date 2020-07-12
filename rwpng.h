@@ -10,6 +10,7 @@
 #ifndef RWPNG_H
 #define RWPNG_H
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -86,7 +87,7 @@ typedef struct {
     unsigned int num_palette;
     rwpng_rgba palette[256];
     rwpng_color_transform output_color;
-    char fast_compression;
+    bool fast_compression;
 } png8_image;
 
 typedef union {

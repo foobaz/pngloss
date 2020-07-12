@@ -1,8 +1,9 @@
 /*
 ** PNG read/write functions
 **
-** © 1998-2000 by Greg Roelofs.
+** © 2020 by William MacKay.
 ** © 2009-2017 by Kornel Lesiński.
+** © 1998-2000 by Greg Roelofs.
 **
 ** See COPYRIGHT file for license.
 */
@@ -111,6 +112,7 @@ static void user_write_data(png_structp png_ptr, png_bytep data, png_size_t leng
 
 static void user_flush_data(png_structp png_ptr)
 {
+#pragma unused(png_ptr)
     // libpng never calls this :(
 }
 
@@ -172,10 +174,12 @@ static int read_chunk_callback(png_structp png_ptr, png_unknown_chunkp in_chunk)
 
 #if !USE_COCOA
 static void rwpng_warning_stderr_handler(png_structp png_ptr, png_const_charp msg) {
+#pragma unused(png_ptr, msg)
     fprintf(stderr, "  libpng warning: %s\n", msg);
 }
 
 static void rwpng_warning_silent_handler(png_structp png_ptr, png_const_charp msg) {
+#pragma unused(png_ptr, msg)
 }
 
 static pngloss_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose)
@@ -297,7 +301,7 @@ static pngloss_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainpr
         return PNG_OUT_OF_MEMORY_ERROR;
     }
 
-    png_bytepp row_pointers = rwpng_create_row_pointers(info_ptr, png_ptr, mainprog_ptr->rgba_data, mainprog_ptr->height, 0);
+    png_bytepp row_pointers = rwpng_create_row_pointers(info_ptr, png_ptr, mainprog_ptr->rgba_data, mainprog_ptr->height, false);
 
     /* now we can go ahead and just read the whole image */
 
@@ -459,7 +463,7 @@ pngloss_error rwpng_read_image24(FILE *infile, png24_image *out, int strip, int 
 }
 
 
-static pngloss_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_structpp png_ptr_p, png_infopp info_ptr_p, int fast_compression)
+static pngloss_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_structpp png_ptr_p, png_infopp info_ptr_p, bool fast_compression)
 {
     /* could also replace libpng warning-handler (final NULL), but no need: */
 
@@ -492,10 +496,13 @@ static pngloss_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_s
 }
 
 
-static void rwpng_write_end(png_infopp info_ptr_p, png_structpp png_ptr_p, png_bytepp row_pointers)
+static void rwpng_write_end(png_infopp info_ptr_p, png_structpp png_ptr_p, png_bytepp row_pointers, bool strip_alpha)
 {
     png_write_info(*png_ptr_p, *info_ptr_p);
 
+    if (strip_alpha) {
+        png_set_filler(*png_ptr_p, 0, PNG_FILLER_AFTER);
+    }
     png_set_packing(*png_ptr_p);
 
     png_write_image(*png_ptr_p, row_pointers);
@@ -598,7 +605,7 @@ pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
         png_set_tRNS(png_ptr, info_ptr, trans, num_trans, NULL);
     }
 
-    rwpng_write_end(&info_ptr, &png_ptr, mainprog_ptr->row_pointers);
+    rwpng_write_end(&info_ptr, &png_ptr, mainprog_ptr->row_pointers, false);
 
     if (SUCCESS == write_state.retval && write_state.maximum_file_size && write_state.bytes_written > write_state.maximum_file_size) {
         return TOO_LARGE_FILE;
@@ -612,7 +619,7 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
     png_structp png_ptr;
     png_infop info_ptr;
 
-    pngloss_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, 0);
+    pngloss_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, false);
     if (retval) return retval;
 
     png_init_io(png_ptr, outfile);
@@ -648,17 +655,60 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
         chunk_num++;
     }
 
+    bool grayscale = false;
+    unsigned char *gray_data = NULL;
+    if (grayscale) {
+        uint32_t width = mainprog_ptr->width;
+        uint32_t height = mainprog_ptr->height;
+        uint32_t rowbytes = width * 2;
+        gray_data = malloc(rowbytes * height);
+        if (gray_data) {
+            for (uint32_t y = 0; y < height; y++) {
+                for (uint32_t x = 0; x < width; x++) {
+                    gray_data[y*rowbytes + x*2 + 0] = mainprog_ptr->row_pointers[y][x*4 + 1];
+                    gray_data[y*rowbytes + x*2 + 1] = mainprog_ptr->row_pointers[y][x*4 + 3];
+                }
+            }
+        } else {
+            grayscale = false;
+        }
+    }
+
+    bool strip_alpha = true;
+    int color_type;
+    if (grayscale) {
+        if (strip_alpha) {
+            color_type = PNG_COLOR_TYPE_GRAY;
+        } else {
+            color_type = PNG_COLOR_TYPE_GRAY_ALPHA;
+        }
+    } else {
+        if (strip_alpha) {
+            color_type = PNG_COLOR_TYPE_RGB;
+        } else {
+            color_type = PNG_COLOR_TYPE_RGB_ALPHA;
+        }
+    }
     png_set_IHDR(png_ptr, info_ptr, mainprog_ptr->width, mainprog_ptr->height,
-                 8, PNG_COLOR_TYPE_RGB_ALPHA,
+                 8, color_type,
                  0, PNG_COMPRESSION_TYPE_DEFAULT,
                  PNG_FILTER_TYPE_BASE);
 
+    unsigned char *base;
+    png_size_t rowbytes;
+    if (grayscale) {
+        base = gray_data;
+        rowbytes = mainprog_ptr->width * 2;
+    } else {
+        base = mainprog_ptr->rgba_data;
+        rowbytes = mainprog_ptr->width * 4;
+    }
+    png_bytepp row_pointers = rwpng_create_row_pointers(info_ptr, png_ptr, base, mainprog_ptr->height, rowbytes);
 
-    png_bytepp row_pointers = rwpng_create_row_pointers(info_ptr, png_ptr, mainprog_ptr->rgba_data, mainprog_ptr->height, 0);
-
-    rwpng_write_end(&info_ptr, &png_ptr, row_pointers);
+    rwpng_write_end(&info_ptr, &png_ptr, row_pointers, strip_alpha);
 
     free(row_pointers);
+    free(gray_data);
 
     return SUCCESS;
 }

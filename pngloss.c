@@ -52,16 +52,16 @@ file exists is to skip the conversion; use --force to overwrite.\n";
 #include "rwpng.h"  /* typedefs, common macros, public prototypes */
 #include "pngloss_opts.h"
 
-char *PNGLOSS_VERSION = "0.1";
+char *PNGLOSS_VERSION = "0.2";
 
-void optimizeWithRows(
-    unsigned char **rows,
-    int width, int height,
-    int bytesPerPixel,
-    int quantization);
+pngloss_error optimize_with_rows(
+    unsigned char **rows, uint32_t width, uint32_t height,
+    uint32_t sliding_length, int_fast16_t quantization,
+    uint_fast8_t bytes_per_pixel
+);
 
 static pngloss_error prepare_output_image(png24_image *input_image, rwpng_color_transform tag, png24_image *output_image);
-static pngloss_error read_image(const char *filename, int using_stdin, png24_image *input_image_p, bool strip, bool verbose);
+static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose);
 static pngloss_error write_image(png8_image *output_image, png24_image *output_image24, const char *outname, struct pngloss_options *options);
 static char *add_filename_extension(const char *filename, const char *newext);
 static bool file_exists(const char *outname);
@@ -190,7 +190,7 @@ pngloss_error pngloss_main_internal(struct pngloss_options *options)
 
     #pragma omp parallel for \
         schedule(static, 1) reduction(+:skipped_count) reduction(+:error_count) reduction(+:file_count) shared(latest_error)
-    for(int i=0; i < options->num_files; i++) {
+    for (unsigned int i = 0; i < options->num_files; i++) {
         const char *filename = options->using_stdin ? "stdin" : options->files[i];
         struct pngloss_options opts = *options;
 
@@ -299,10 +299,10 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
         // quality 99 => quantization 1
         // quality 98 => quantization 2
         // and finally on the other end of the scale:
-        // quality 1 => quantization near to but not exceeding 255
+        // quality 1 => quantization 127, which turns image monochrome
         int x = 100 - options->quality;
-        int quantization = x + x*x/63;
-        optimizeWithRows(output_image.row_pointers, output_image.width, output_image.height, 4, quantization);
+        int quantization = x + x*x/350;
+        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, 100, quantization, 4);
 
         if (options->skip_if_larger) {
             output_image.maximum_file_size = input_image.file_size - 1;
@@ -382,6 +382,8 @@ static void set_binary_mode(FILE *fp)
 {
 #if defined(_WIN32) || defined(WIN32) || defined(__WIN32__)
     setmode(fp == stdout ? 1 : 0, O_BINARY);
+#else
+#pragma unused(fp)
 #endif
 }
 
@@ -401,6 +403,8 @@ static bool replace_file(const char *from, const char *to, const bool force) {
         // On Windows rename doesn't replace
         unlink(to);
     }
+#else
+#pragma unused(force)
 #endif
     return (0 == rename(from, to));
 }
@@ -474,7 +478,7 @@ static pngloss_error write_image(png8_image *output_image, png24_image *output_i
     return retval;
 }
 
-static pngloss_error read_image(const char *filename, int using_stdin, png24_image *input_image_p, bool strip, bool verbose)
+static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose)
 {
     FILE *infile;
 
