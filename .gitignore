@@ -6,8 +6,7 @@
 *.pbxuser
 build
 DerivedData
-pngquant
-lib/libimagequant.a
+pngloss
 *.obj
 *.lib
 config.mk

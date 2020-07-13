@@ -52,7 +52,7 @@ file exists is to skip the conversion; use --force to overwrite.\n";
 #include "rwpng.h"  /* typedefs, common macros, public prototypes */
 #include "pngloss_opts.h"
 
-char *PNGLOSS_VERSION = "0.2";
+char *PNGLOSS_VERSION = "0.3";
 
 pngloss_error optimize_with_rows(
     unsigned char **rows, uint32_t width, uint32_t height,
