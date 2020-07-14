@@ -280,7 +280,7 @@ uint_fast8_t optimize_state_run(
             left = state->pixels[offset-image->bytes_per_pixel];
         }
 
-        int_fast16_t here_color = (int_fast16_t)image->rows[state->y][offset] + state->color_error[state->x][c];
+        int_fast16_t here_color = (int_fast16_t)image->rows[state->y][offset] + state->color_error[state->x+2][c];
         // TODO: propagate this saturation error instead of discarding it
         if (here_color < 0) {
             here_color = 0;

@@ -19,6 +19,7 @@ options:\n\
   -o, --output file destination file path to use instead of --ext\n\
   -v, --verbose     print status messages\n\
   -q, --quiet       don't print status messages (default, overrides -v)\n\
+  -V, --version     print version number\n\
   --skip-if-larger  only save converted files if they're smaller than original\n\
   --ext new.png     set custom suffix/extension for output filenames\n\
   --strip           remove optional metadata (default on Mac)\n\

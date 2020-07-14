@@ -20,12 +20,18 @@ improve the lossy compression algorithm.
 
 ### Synopsis
 
-`pngloss [options] <quality> <file> [<file>...]`
+`pngloss [options] <file> [<file>...]`
 
 Quality ranges from 1 to 100. Quality 100 is lossless and does not modify the
 pixel data, although it may convert colorspace or strip PNG chunks.
 
 ### Options
+
+`-s`, `--strength`
+How much quality to sacrifice, from 0 to 100 (default 20)
+
+`-1`-`-9`, `--fast`, `--best`
+How much time to spend on compression (default 5)
 
 `-v`, `--verbose`
 Verbose - print additional information about compression
