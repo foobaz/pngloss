@@ -8,15 +8,20 @@
 */
 
 char *PNGLOSS_USAGE = "\
-usage:  pngloss [options] [quality] -- pngfile [pngfile ...]\n\
-        pngloss [options] [quality] - >stdout <stdin\n\n\
+usage:  pngloss [options] -- pngfile [pngfile ...]\n\
+        pngloss [options] - >stdout <stdin\n\n\
 options:\n\
-  --force           overwrite existing output files (synonym: -f)\n\
+  -s, --strength 20 how much quality to sacrifice, from 0 to 100 (default 20)\n\
+  -1, --fast        compress as fast as possible\n\
+  -5                default compression speed\n\
+  -9, --best        compress as well as possible\n\
+  -f, --force       overwrite existing output files\n\
+  -o, --output file destination file path to use instead of --ext\n\
+  -v, --verbose     print status messages\n\
+  -q, --quiet       don't print status messages (default, overrides -v)\n\
   --skip-if-larger  only save converted files if they're smaller than original\n\
-  --output file     destination file path to use instead of --ext (synonym: -o)\n\
   --ext new.png     set custom suffix/extension for output filenames\n\
   --strip           remove optional metadata (default on Mac)\n\
-  --verbose         print status messages (synonym: -v)\n\
 \n\
 Lossily compresses a PNG by using more compressible colors that are\n\
 close enough to the original color values. The threshold determining\n\
@@ -49,16 +54,11 @@ file exists is to skip the conversion; use --force to overwrite.\n";
 #define omp_get_thread_num() 0
 #endif
 
-#include "rwpng.h"  /* typedefs, common macros, public prototypes */
+#include "pngloss_image.h"
 #include "pngloss_opts.h"
+#include "rwpng.h"  /* typedefs, common macros, public prototypes */
 
-char *PNGLOSS_VERSION = "0.3";
-
-pngloss_error optimize_with_rows(
-    unsigned char **rows, uint32_t width, uint32_t height,
-    uint32_t sliding_length, int_fast16_t quantization,
-    uint_fast8_t bytes_per_pixel
-);
+char *PNGLOSS_VERSION = "0.4";
 
 static pngloss_error prepare_output_image(png24_image *input_image, rwpng_color_transform tag, png24_image *output_image);
 static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose);
@@ -108,7 +108,8 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
 int main(int argc, char *argv[])
 {
     struct pngloss_options options = {
-        .strip = false,
+        .level = 5,
+        .strength = 20,
     };
 
     pngloss_error retval = pngloss_parse_options(argc, argv, &options);
@@ -133,8 +134,8 @@ int main(int argc, char *argv[])
         return SUCCESS;
     }
 
-    if (options.quality < 1 || options.quality > 100) {
-        fputs("Must specify a quality in the range 1-100.\n", stderr);
+    if (options.strength > 100) {
+        fputs("Must specify a strength in the range 0-100.\n", stderr);
         return INVALID_ARGUMENT;
     }
 
@@ -300,9 +301,48 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
         // quality 98 => quantization 2
         // and finally on the other end of the scale:
         // quality 1 => quantization 127, which turns image monochrome
-        int x = 100 - options->quality;
-        int quantization = x + x*x/350;
-        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, 100, quantization, 4);
+        //int x = 100 - options->quality;
+        //int quantization = x + x*x/350;
+        uint_fast8_t sliding_length = 14, max_run_length = 14;
+        switch (options->level) {
+        case 1:
+            sliding_length = 6;
+            max_run_length = 3;
+            break;
+        case 2:
+            sliding_length = 10;
+            max_run_length = 4;
+            break;
+        case 3:
+            sliding_length = 16;
+            max_run_length = 6;
+            break;
+        case 4:
+            sliding_length = 25;
+            max_run_length = 10;
+            break;
+        case 5:
+            sliding_length = 40;
+            max_run_length = 14;
+            break;
+        case 6:
+            sliding_length = 63;
+            max_run_length = 20;
+            break;
+        case 7:
+            sliding_length = 100;
+            max_run_length = 30;
+            break;
+        case 8:
+            sliding_length = 160;
+            max_run_length = 44;
+            break;
+        case 9:
+            sliding_length = 250;
+            max_run_length = 64;
+            break;
+        }
+        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, sliding_length, max_run_length, options->strength, 4, options->verbose);
 
         if (options->skip_if_larger) {
             output_image.maximum_file_size = input_image.file_size - 1;

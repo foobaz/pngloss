@@ -30,6 +30,9 @@ static const struct option long_options[] = {
     {"strip", no_argument, NULL, arg_strip},
     {"version", no_argument, NULL, 'V'},
     {"help", no_argument, NULL, 'h'},
+    {"strength", required_argument, NULL, 's'},
+    {"fast", no_argument, NULL, '1'},
+    {"best", no_argument, NULL, '9'},
     {NULL, 0, NULL, 0},
 };
 
@@ -37,7 +40,10 @@ pngloss_error pngloss_parse_options(int argc, char *argv[], struct pngloss_optio
 {
     int opt;
     do {
-        opt = getopt_long(argc, argv, "Vvqfhs:Q:o:", long_options, NULL);
+        char *strength_end;
+        unsigned long strength;
+
+        opt = getopt_long(argc, argv, "vqfo:Vhs:123456789", long_options, NULL);
         switch (opt) {
             case 'v':
                 options->verbose = true;
@@ -77,6 +83,22 @@ pngloss_error pngloss_parse_options(int argc, char *argv[], struct pngloss_optio
                 options->print_version = true;
                 break;
 
+            case '1': case '2': case '3':
+            case '4': case '5': case '6':
+            case '7': case '8': case '9':
+                options->level = opt - '0';
+                break;
+
+            case 's':
+                strength = strtoul(optarg, &strength_end, 10);
+                if (strength_end != optarg && '\0' == strength_end[0]) {
+                    options->strength = strength;
+                } else {
+                    fputs("-s, --strength requires a numeric argument\n", stderr);
+                    return INVALID_ARGUMENT;
+                }
+                break;
+
             case -1: break;
 
             default:
@@ -87,13 +109,6 @@ pngloss_error pngloss_parse_options(int argc, char *argv[], struct pngloss_optio
     int argn = optind;
 
     if (argn < argc) {
-        char *quality_end;
-        unsigned long quality = strtoul(argv[argn], &quality_end, 10);
-        if (quality_end != argv[argn] && '\0' == quality_end[0]) {
-            options->quality = quality;
-            argn++;
-        }
-
         if (argn == argc || (argn == argc-1 && 0==strcmp(argv[argn],"-"))) {
             options->using_stdin = true;
             options->using_stdout = !options->output_file_path;
