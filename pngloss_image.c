@@ -85,6 +85,7 @@ pngloss_error optimize_image(
     };
     pngloss_error retval;
     unsigned char spinner[filter_count] = {'-', '/', '|', '\\', '-'};
+    unsigned char *last_row_pixels;
 
     retval = optimize_state_init(
         &state, image, sliding_length
@@ -94,6 +95,12 @@ pngloss_error optimize_image(
             retval = optimize_state_init(
                 filter_states + i, image, sliding_length
             );
+        }
+    }
+    if (SUCCESS == retval) {
+        last_row_pixels = calloc((size_t)image->width, bytes_per_pixel);
+        if (!last_row_pixels) {
+            retval = OUT_OF_MEMORY_ERROR;
         }
     }
     if (SUCCESS == retval) {
@@ -117,6 +124,7 @@ pngloss_error optimize_image(
                     uint32_t cost = optimize_state_row(
                         filter_states + i,
                         image,
+                        last_row_pixels,
                         sliding_length,
                         max_run_length,
                         strength,
@@ -148,6 +156,11 @@ pngloss_error optimize_image(
                 filter_states[best_index].pixels,
                 image->width * bytes_per_pixel
             );
+            memcpy(
+                last_row_pixels,
+                filter_states[best_index].pixels,
+                image->width * bytes_per_pixel
+            );
             optimize_state_copy(&state, filter_states + best_index, image, sliding_length);
         }
         // done with progress display, advance to next line for subsequent messages
@@ -159,6 +172,7 @@ pngloss_error optimize_image(
     for (uint_fast8_t i = 0; i < filter_count; i++) {
         optimize_state_destroy(filter_states + i);
     }
+    free(last_row_pixels);
 
     return retval;
 }

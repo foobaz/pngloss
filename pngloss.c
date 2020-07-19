@@ -344,6 +344,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
             max_run_length = 64;
             break;
         }
+        //sliding_length = 8192;
         optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, sliding_length, max_run_length, options->strength, options->verbose);
 
         if (options->skip_if_larger) {

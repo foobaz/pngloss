@@ -22,43 +22,43 @@ improve the lossy compression algorithm.
 
 `pngloss [options] <file> [<file>...]`
 
-Quality ranges from 1 to 100. Quality 100 is lossless and does not modify the
-pixel data, although it may convert colorspace or strip PNG chunks.
-
 ### Options
 
 `-s`, `--strength`
-How much quality to sacrifice, from 0 to 100 (default 20)
+How much quality to sacrifice, from 0 to 100 (default 20). Strength 0 is
+lossless and does not modify the pixel data, although it may convert
+colorspace or strip PNG chunks. Minimal effect on compression speed.
 
 `-1`-`-9`, `--fast`, `--best`
-How much time to spend on compression (default 5)
+How much time to spend on compression (default 5). Higher levels result in
+smaller output files but have a minimal effect on image quality.
 
 `-v`, `--verbose`
-Verbose - print additional information about compression
+Verbose - print additional information about compression.
 
 `-q`, `--quiet`
-Quiet - don't print information about compression
+Quiet - don't print information about compression.
 
 `-f`, `--force`
-Force - overwrite existing output image
+Force - overwrite existing output image.
 
 `--no-force`
-Don't overwrite existing output image - overrides an earlier "force" argument
+Don't overwrite existing output image - overrides an earlier "force" argument.
 
 `--ext`
-Specify filename extension. Defaults to "-loss.png"
+Specify filename extension. Defaults to "-loss.png".
 
 `--skip-if-larger`
-Don't write compressed image if it's larger than the original
+Don't write compressed image if it's larger than the original.
 
 `-o`, `--output`
-Output filename. When this option is given only one input file is accepted
+Output filename. When this option is given only one input file is accepted.
 
 `--strip`
-Remove unnecessary chunks (metadata) from input file when writing output
+Remove unnecessary chunks (metadata) from input file when writing output.
 
 `-V`, `--version`
-Print version number
+Print version number.
 
 `-h`, `--help`
-Display usage information
+Display usage information.

@@ -1,7 +1,8 @@
 -include config.mk
 
 CC ?= /usr/bin/cc
-CFLAGS = -O3 -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
+CFLAGS = -g -Og -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
+#CFLAGS = -O3 -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
 #CFLAGS = -O3 -Wall -Wextra -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lpng
 VERSION = 0.4
