@@ -12,6 +12,8 @@ typedef struct {
     uint_fast16_t sliding_index;
     unsigned char *pixels;
     color_delta *color_error;
+    uint32_t *symbol_frequency;
+    unsigned long symbol_count;
 } optimize_state;
 
 // function prototypes
@@ -46,5 +48,7 @@ void diffuse_color_error(
 uint_fast8_t adaptive_filter_for_rows(
     pngloss_image *image, unsigned char *above_row, unsigned char *pixels
 );
+
+uint_fast8_t ulog2(unsigned long x);
 
 #endif // OPTIMIZE_STATE_H

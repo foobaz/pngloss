@@ -7,6 +7,31 @@
 ** See COPYRIGHT file for license.
 */
 
+#include <math.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if defined(_WIN32) || defined(WIN32) || defined(__WIN32__)
+#  include <fcntl.h>    /* O_BINARY */
+#  include <io.h>   /* setmode() */
+#else
+#  include <unistd.h>
+#endif
+
+#ifdef _OPENMP
+#include <omp.h>
+#else
+#define omp_get_max_threads() 1
+#define omp_get_thread_num() 0
+#endif
+
+#include "pngloss_image.h"
+#include "pngloss_opts.h"
+#include "rwpng.h"  /* typedefs, common macros, public prototypes */
+
 char *PNGLOSS_USAGE = "\
 usage:  pngloss [options] -- pngfile [pngfile ...]\n\
         pngloss [options] - >stdout <stdin\n\n\
@@ -33,31 +58,6 @@ compressed image will go to stdout).  If you pass the special output path\n\
 \"-\" and a single input file, that file will be processed and the\n\
 compressed image will go to stdout. The default behavior if the output\n\
 file exists is to skip the conversion; use --force to overwrite.\n";
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <math.h>
-
-#if defined(_WIN32) || defined(WIN32) || defined(__WIN32__)
-#  include <fcntl.h>    /* O_BINARY */
-#  include <io.h>   /* setmode() */
-#else
-#  include <unistd.h>
-#endif
-
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#define omp_get_max_threads() 1
-#define omp_get_thread_num() 0
-#endif
-
-#include "pngloss_image.h"
-#include "pngloss_opts.h"
-#include "rwpng.h"  /* typedefs, common macros, public prototypes */
 
 char *PNGLOSS_VERSION = "0.4";
 
@@ -293,58 +293,54 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
     }
 
     png24_image output_image = {.width=0};
-    retval = prepare_output_image(&input_image, input_image.output_color, &output_image);
     if (SUCCESS == retval) {
-        // quality to quantization formula designed with these properties:
-        // quality 100 => quantization 0
-        // d(quantization)/d(quality) == -1 for quality == 100, therefore:
-        // quality 99 => quantization 1
-        // quality 98 => quantization 2
-        // and finally on the other end of the scale:
-        // quality 1 => quantization 127, which turns image monochrome
-        //int x = 100 - options->quality;
-        //int quantization = x + x*x/350;
-        uint_fast16_t sliding_length = 14;
-        uint_fast8_t max_run_length = 40;
+        retval = prepare_output_image(&input_image, input_image.output_color, &output_image);
+    }
+
+    if (SUCCESS == retval) {
+        uint_fast16_t sliding_length;
+        uint_fast8_t max_run_length;
+        // level => sliding length based on E3 series
+        // level => run length based on E48 series
         switch (options->level) {
         case 1:
-            sliding_length = 6;
+            sliding_length = 12;
             max_run_length = 3;
             break;
         case 2:
-            sliding_length = 10;
+            sliding_length = 24;
             max_run_length = 4;
             break;
         case 3:
-            sliding_length = 16;
+            sliding_length = 48;
             max_run_length = 6;
             break;
         case 4:
-            sliding_length = 25;
+            sliding_length = 100;
             max_run_length = 10;
             break;
         case 5:
-            sliding_length = 40;
+        default:
+            sliding_length = 220;
             max_run_length = 14;
             break;
         case 6:
-            sliding_length = 63;
+            sliding_length = 472;
             max_run_length = 20;
             break;
         case 7:
-            sliding_length = 100;
+            sliding_length = 1000;
             max_run_length = 30;
             break;
         case 8:
-            sliding_length = 160;
+            sliding_length = 2200;
             max_run_length = 44;
             break;
         case 9:
-            sliding_length = 250;
+            sliding_length = 8192;
             max_run_length = 64;
             break;
         }
-        //sliding_length = 8192;
         optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, sliding_length, max_run_length, options->strength, options->verbose);
 
         if (options->skip_if_larger) {

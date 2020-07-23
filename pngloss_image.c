@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "optimize_state.h"
 #include "pngloss_filters.h"
@@ -63,12 +64,13 @@ pngloss_error optimize_with_rows(
 }
 
 #define filter_count 5
+#define spin_count 4
 pngloss_error optimize_image(
     pngloss_image *image, uint_fast16_t sliding_length,
     uint_fast8_t max_run_length, uint_fast8_t quantization_strength,
     bool verbose
 ) {
-    optimize_state state, filter_states[filter_count];
+    optimize_state state, best, filter_state;
     unsigned char filter_names[filter_count] = {
         PNG_FILTER_NONE,
         PNG_FILTER_SUB,
@@ -84,18 +86,18 @@ pngloss_error optimize_image(
         pngloss_filter_paeth,
     };
     pngloss_error retval;
-    unsigned char spinner[filter_count] = {'-', '/', '|', '\\', '-'};
+    int spinner[spin_count] = {'-', '/', '|', '\\'};
+    //wint_t spinner[spin_count] = {u'\u253C', u'\u251C', u'\u2514', u'\u2534', u'\u253C', u'\u252C', u'\u250C', u'\u251C', u'\u253C', u'\u2524', u'\u2510', u'\u252C', u'\u253C', u'\u2534', u'\u2518', u'\u2524'};
+
+    uint_fast8_t spin_index = 0;
     unsigned char *last_row_pixels;
 
-    retval = optimize_state_init(
-        &state, image, sliding_length
-    );
-    for (uint_fast8_t i = 0; i < filter_count; i++) {
-        if (SUCCESS == retval) {
-            retval = optimize_state_init(
-                filter_states + i, image, sliding_length
-            );
-        }
+    retval = optimize_state_init(&state, image, sliding_length);
+    if (SUCCESS == retval) {
+        retval = optimize_state_init(&best, image, sliding_length);
+    }
+    if (SUCCESS == retval) {
+        retval = optimize_state_init(&filter_state, image, sliding_length);
     }
     if (SUCCESS == retval) {
         last_row_pixels = calloc((size_t)image->width, bytes_per_pixel);
@@ -104,25 +106,47 @@ pngloss_error optimize_image(
         }
     }
     if (SUCCESS == retval) {
+        struct timeval tp;
+        time_t old_sec = 0;
+        suseconds_t old_dsec = 0;
         while (state.y < image->height) {
             uint32_t current_y = state.y;
             uint32_t best_cost = -1;
+            uint32_t best_strength = 0;
             uint_fast8_t best_index = 0;
             bool found_best = false;
             uint_fast8_t strength = quantization_strength;
             while (!found_best) {
                 for (uint_fast8_t i = 0; i < filter_count; i++) {
-                    // print progress display
-                    float percent = 100.0f * (float)(current_y * 5 + i) / (float)(image->height * 5);
                     if (verbose) {
-                        fprintf(stderr, "\x1B[\x01G%c %.1f%% complete", (int)spinner[i], percent);
+                        // print progress display
+                        int err;
+                        err = gettimeofday(&tp, NULL);
+                        if (err) {
+                            spin_index = (spin_index + 1) % spin_count;
+                        } else {
+                            suseconds_t dsec = tp.tv_usec / 100000;
+                            if (old_sec != tp.tv_sec || old_dsec != dsec) {
+                                old_sec = tp.tv_sec;
+                                old_dsec = dsec;
+                                spin_index = (spin_index + 1) % spin_count;
+                            }
+                        }
+
+                        uint_fast8_t j = i;
+                        if (strength != quantization_strength) {
+                            j = filter_count;
+                        }
+                        float percent = 100.0f * (float)(current_y * (filter_count + 1) + j) / (float)(image->height * (filter_count + 1));
+
+                        fprintf(stderr, "\x1B[\x01G%c %.1f%% complete", spinner[spin_index], percent);
                         fflush(stderr);
                     }
 
                     // get to work
-                    optimize_state_copy(filter_states + i, &state, image, sliding_length);
+                    optimize_state_copy(&filter_state, &state, image, sliding_length);
                     uint32_t cost = optimize_state_row(
-                        filter_states + i,
+                        &filter_state,
                         image,
                         last_row_pixels,
                         sliding_length,
@@ -132,11 +156,19 @@ pngloss_error optimize_image(
                         filter_names[i],
                         filter_functions[i]
                     );
-                    //fprintf(stderr, "filter %d costs %u\n", (int)i, (unsigned int)cost);
+                    /*
+                    fprintf(stderr, "filter %d costs %u\n", (int)i, (unsigned int)cost);
+                    if (cost < (uint32_t)-1) {
+                        fprintf(stderr, "filter %u costs %u\n", (unsigned int)i, (unsigned int)cost);
+                    }
+                    */
+
                     if (best_cost > cost) {
                         best_cost = cost;
                         best_index = i;
+                        best_strength = strength;
                         found_best = true;
+                        optimize_state_copy(&best, &filter_state, image, sliding_length);
                     }
                 }
 
@@ -150,18 +182,18 @@ pngloss_error optimize_image(
                 // if no filter succeeds, try again at lower quantization strength
                 strength--;
             }
-            //fprintf(stderr, "best filter %d cost %u\n", (int)best_index, (unsigned int)best_cost);
-            memcpy(
-                image->rows[current_y],
-                filter_states[best_index].pixels,
-                image->width * bytes_per_pixel
-            );
+            //fprintf(stderr, "row %u best cost %u at index %u strength %u\n", (unsigned int)current_y, (unsigned int)best_cost, (unsigned int)best_index, (unsigned int)best_strength);
             memcpy(
                 last_row_pixels,
-                filter_states[best_index].pixels,
+                image->rows[current_y],
                 image->width * bytes_per_pixel
             );
-            optimize_state_copy(&state, filter_states + best_index, image, sliding_length);
+            memcpy(
+                image->rows[current_y],
+                best.pixels,
+                image->width * bytes_per_pixel
+            );
+            optimize_state_copy(&state, &best, image, sliding_length);
         }
         // done with progress display, advance to next line for subsequent messages
         if (verbose) {
@@ -169,9 +201,8 @@ pngloss_error optimize_image(
         }
     }
     optimize_state_destroy(&state);
-    for (uint_fast8_t i = 0; i < filter_count; i++) {
-        optimize_state_destroy(filter_states + i);
-    }
+    optimize_state_destroy(&best);
+    optimize_state_destroy(&filter_state);
     free(last_row_pixels);
 
     return retval;
