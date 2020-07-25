@@ -9,11 +9,6 @@ const uint_fast8_t dither_row_count = 2;
 const uint_fast8_t dither_filter_width = 5;
 const uint_fast16_t symbol_count = 285;
 
-//unsigned long total_color_error = 0;
-//unsigned long total_above_error = 0;
-//unsigned long total_diag_error = 0;
-//unsigned long total_left_error = 0;
-
 pngloss_error optimize_state_init(
     optimize_state *state, pngloss_image *image, uint_fast16_t sliding_length
 ) {
@@ -86,7 +81,7 @@ void optimize_state_copy(
 }
 
 uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image, unsigned char *last_row_pixels,
+    optimize_state *state, pngloss_image *image,
     uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization_strength, pngloss_filter filter
 ) {
@@ -123,19 +118,12 @@ uint_fast8_t optimize_state_run(
     uint32_t color_bottom_dirty_left = error_width - 1;
     uint32_t color_bottom_dirty_right = 0;
 
-    //unsigned long saved_color_error = total_color_error;
-    //unsigned long saved_above_error = total_above_error;
-    //unsigned long saved_diag_error = total_diag_error;
-    //unsigned long saved_left_error = total_left_error;
-
     // don't look back before beginning of image
     unsigned long pixel_index = ((unsigned long)state->y * image->width + state->x) * bytes_per_pixel;
     uint_fast16_t max_distance = sliding_length;
     if (pixel_index < max_distance) {
         max_distance = pixel_index;
     }
-
-    //uint32_t max_error = (uint32_t)bytes_per_pixel * quantization_strength * quantization_strength;
 
     unsigned char (*filter_functions[pngloss_filter_count])(unsigned char, unsigned char, unsigned char) = {
         pngloss_filter_none,
@@ -156,24 +144,15 @@ uint_fast8_t optimize_state_run(
                 continue;
             }
             //fprintf(stderr, "len %u dist %u\n", (unsigned int)run_length, (unsigned int)distance);
-            // color, above, diag, left makes four
-            const unsigned long error_type_count = 4;
-            unsigned long max_error = (unsigned long)run_length * bytes_per_pixel * quantization_strength * quantization_strength * error_type_count;
-            //fprintf(stderr, "run_length == %u, max_error == %u\n", (unsigned int)run_length, (unsigned int)max_error);
-            unsigned long total_error = 0;
             bool match_failed = false;
 
             for (uint_fast8_t back_index = 0; back_index < run_length; back_index++) {
                 int_fast16_t back_color[4];
                 int_fast16_t here_color[4];
-                int_fast16_t old_above_color[4];
-                int_fast16_t new_above_color[4];
-                int_fast16_t old_diag_color[4];
-                int_fast16_t new_diag_color[4];
-                int_fast16_t old_left_color[4];
-                int_fast16_t new_left_color[4];
 
                 for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
+                    int_fast16_t orig_color;
+
                     size_t sliding_back_index = ((size_t)sliding_length + state->sliding_index - distance) % sliding_length;
                     unsigned char back_value = state->sliding_window[sliding_back_index];
                     //fprintf(stderr, "i %u back %zu val %u\n", (unsigned int)state->sliding_index, sliding_back_index, (unsigned int)back_value);
@@ -192,66 +171,34 @@ uint_fast8_t optimize_state_run(
 
                     uint32_t offset = state->x*bytes_per_pixel + c;
                     unsigned char above = 0, diag = 0, left = 0;
-                    unsigned char old_diag = 0, old_left = 0;
                     if (state->y > 0) {
                         above = image->rows[state->y-1][offset];
                         if (state->x > 0) {
                             diag = image->rows[state->y-1][offset-bytes_per_pixel];
-                            old_diag = last_row_pixels[offset-bytes_per_pixel];
                         }
                     }
                     if (state->x > 0) {
                         left = state->pixels[offset-bytes_per_pixel];
-                        old_left = image->rows[state->y][offset-bytes_per_pixel];
                     }
                     unsigned char filter_value = filter_functions[filter](above, diag, left);
                     back_color[c] = (unsigned char)(back_value + filter_value);
 
                     here_color[c] = (int_fast16_t)image->rows[state->y][offset] + state->color_error[state->x+2][c];
-                    old_above_color[c] = last_row_pixels[offset];
-                    new_above_color[c] = above;
-                    old_diag_color[c] = old_diag;
-                    new_diag_color[c] = diag;
-                    old_left_color[c] = old_left;
-                    new_left_color[c] = left;
+                    orig_color = image->rows[state->y][offset];
+
+                    if (orig_color < back_color[c] && back_color[c] <= here_color[c]) {
+                        continue;
+                    }
+                    if (here_color[c] <= back_color[c] && back_color[c] < orig_color) {
+                        continue;
+                    }
+                    match_failed = true;
+                    break;
                 }
 
-                color_delta difference;
-                color_difference(back_color, here_color, difference);
-                uint32_t color_error = color_distance(difference);
-
-                color_delta old_partial_above, new_partial_above;
-                color_difference(here_color, old_above_color, old_partial_above);
-                color_difference(back_color, new_above_color, new_partial_above);
-                color_d2 d2_above;
-                color_delta_difference(new_partial_above, old_partial_above, d2_above);
-                uint32_t above_error = color_delta_distance(d2_above);
-
-                color_delta old_partial_diag, new_partial_diag;
-                color_difference(here_color, old_diag_color, old_partial_diag);
-                color_difference(back_color, new_diag_color, new_partial_diag);
-                color_d2 d2_diag;
-                color_delta_difference(new_partial_diag, old_partial_diag, d2_diag);
-                uint32_t diag_error = color_delta_distance(d2_diag);
-
-                color_delta old_partial_left, new_partial_left;
-                color_difference(here_color, old_left_color, old_partial_left);
-                color_difference(back_color, new_left_color, new_partial_left);
-                color_d2 d2_left;
-                color_delta_difference(new_partial_left, old_partial_left, d2_left);
-                uint32_t left_error = color_delta_distance(d2_left);
-
-                //fprintf(stderr, "color %u above %u diag %u left %u\n", (unsigned int)color_error, (unsigned int)above_error, (unsigned int)diag_error, (unsigned int)left_error);
-
-                //total_color_error += color_error;
-                //total_above_error += above_error;
-                //total_diag_error += diag_error;
-                //total_left_error += left_error;
-                total_error += (unsigned long)color_error + above_error + diag_error + left_error;
-                //unsigned long total_error = (unsigned long)color_error + above_error + diag_error + left_error;
-                if (max_error < total_error) {
+                if (match_failed) {
                     // too much error, abort this run length + distance and try another
-                    match_failed = true;
+                    //match_failed = true;
                     //fprintf(stderr, "failed, total %u > max %u\n", (unsigned int)total_error, (unsigned int)max_error);
 
                     // update distance => run length cache with failed match length
@@ -293,20 +240,18 @@ uint_fast8_t optimize_state_run(
                     color_bottom_dirty_left = error_width - 1;
                     color_bottom_dirty_right = 0;
 
-                    //total_color_error = saved_color_error;
-                    //total_above_error = saved_above_error;
-                    //total_diag_error = saved_diag_error;
-                    //total_left_error = saved_left_error;
-
                     break;
                 }
-                //fprintf(stderr, "total %u <= max %u\n", (unsigned int)total_error, (unsigned int)max_error);
 
                 // passed color error check, now copy back_color to output pixels
                 for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
                     uint32_t offset = state->x*bytes_per_pixel + c;
                     state->pixels[offset] = back_color[c];
                 }
+
+                // calculate color difference between what i wanted and what i have
+                color_delta difference;
+                color_difference(back_color, here_color, difference);
 
                 // diffuse color error from choice of current pixel to subsequent neighboring pixels
                 diffuse_color_error(state, image, difference);
@@ -370,28 +315,54 @@ uint_fast8_t optimize_state_run(
             left = state->pixels[offset-bytes_per_pixel];
         }
 
-        here_color[c] = (int_fast16_t)image->rows[state->y][offset] + state->color_error[state->x+2][c];
-        if (here_color[c] < 0) {
-            back_color[c] = 0;
-        } else if (here_color[c] > 255) {
-            back_color[c] = 255;
-        } else {
-            back_color[c] = here_color[c];
+        back_color[c] = image->rows[state->y][offset];
+        here_color[c] = back_color[c] + state->color_error[state->x+2][c];
+
+        unsigned char predicted = filter_functions[filter](above, diag, left);
+        int_fast16_t filtered_value = here_color[c] - predicted;
+        //fprintf(stderr, "i %u back[%u] %u, filtered %u\n", (unsigned int)state->sliding_index, (unsigned int)c, (unsigned int)back_color[c], (unsigned int)filtered_value);
+
+        int_fast16_t original = back_color[c] - predicted;
+        unsigned char best_close_value = original;
+
+        int_fast16_t half_strength = quantization_strength / 2;
+        int_fast16_t min = filtered_value - half_strength;
+        if (min > original) {
+            min = original;
+        }
+        int_fast16_t max = filtered_value + half_strength;
+        if (max < original) {
+            max = original;
         }
 
-        unsigned char filtered_value = (unsigned char)back_color[c] - filter_functions[filter](above, diag, left);
-        //fprintf(stderr, "i %u back[%u] %u, filtered %u\n", (unsigned int)state->sliding_index, (unsigned int)c, (unsigned int)back_color[c], (unsigned int)filtered_value);
-        state->sliding_window[state->sliding_index] = filtered_value;
+        //fprintf(stderr, "%u starting %u min %d max %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)min, (int)max); 
+        uint32_t best_frequency = 0;
+        for (int_fast16_t close_value = min; close_value <= max; close_value++) {
+            int_fast16_t back = close_value + predicted;
+            if (back >= 0 && back <= 255) {
+                unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
+                unsigned long bias = abs(close_value - filtered_value);
+                if (best_frequency + bias < frequency) {
+                    best_frequency = frequency;
+                    best_close_value = close_value;
+                    back_color[c] = back;
+                }
+            }
+        }
+        //fprintf(stderr, "%u orig %u here %d best %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)here_color[c], (int)back_color[c]); 
+
+        state->sliding_window[state->sliding_index] = best_close_value;
         //uint_fast16_t old_sliding_index = state->sliding_index;
         state->sliding_index = (state->sliding_index + 1) % sliding_length;
         //fprintf(stderr, "pixel inc'd index %u => %u\n", (unsigned int)old_sliding_index, (unsigned int)state->sliding_index);
 
         state->pixels[offset] = back_color[c];
 
-        state->symbol_frequency[filtered_value]++;
+        state->symbol_frequency[best_close_value]++;
+        //fprintf(stderr, "%u best %u has frequency %u\n", (unsigned int)c, (unsigned int)best_close_value, (unsigned int)state->symbol_frequency[best_close_value]);
         state->symbol_count++;
         //fprintf(stderr, "val %u, count %u, freq %u\n", (unsigned int)back_value, (unsigned int)state->symbol_count, (unsigned int)state->symbol_frequency[back_value]);
-        symbol_cost += ulog2(state->symbol_count / state->symbol_frequency[filtered_value]);
+        symbol_cost += ulog2(state->symbol_count / state->symbol_frequency[best_close_value]);
     }
 
     state->x++;
@@ -406,22 +377,17 @@ uint_fast8_t optimize_state_run(
 }
 
 uint32_t optimize_state_row(
-    optimize_state *state, pngloss_image *image, unsigned char *last_row_pixels,
+    optimize_state *state, pngloss_image *image,
     uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization_strength, uint32_t best_cost,
     pngloss_filter filter
 ) {
-    //total_color_error = 0;
-    //total_above_error = 0;
-    //total_diag_error = 0;
-    //total_left_error = 0;
     //fprintf(stderr, "In %s, width == %d, height == %d, sliding_length == %d, quantization == %d\n", __func__, (int)width, (int)height, (int)sliding_length, (int)quantization_strength);
     uint32_t total_cost = 0;
     while (state->x < image->width) {
         uint_fast8_t cost = optimize_state_run(
             state,
             image,
-            last_row_pixels,
             sliding_length,
             max_run_length,
             quantization_strength,

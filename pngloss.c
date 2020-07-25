@@ -59,7 +59,7 @@ compressed image will go to stdout).  If you pass the special output path\n\
 compressed image will go to stdout. The default behavior if the output\n\
 file exists is to skip the conversion; use --force to overwrite.\n";
 
-char *PNGLOSS_VERSION = "0.4";
+char *PNGLOSS_VERSION = "0.5";
 
 static pngloss_error prepare_output_image(png24_image *input_image, rwpng_color_transform tag, png24_image *output_image);
 static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose);

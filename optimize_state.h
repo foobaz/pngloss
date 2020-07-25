@@ -37,12 +37,12 @@ void optimize_state_copy(
     uint_fast16_t sliding_length
 );
 uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image, unsigned char *last_row_pixels,
+    optimize_state *state, pngloss_image *image,
     uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization, pngloss_filter filter
 );
 uint32_t optimize_state_row(
-    optimize_state *state, pngloss_image *image, unsigned char *last_row_pixels,
+    optimize_state *state, pngloss_image *image,
     uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization_strength, uint32_t best_cost,
     pngloss_filter filter

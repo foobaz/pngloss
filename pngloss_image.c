@@ -73,7 +73,6 @@ pngloss_error optimize_image(
     //wint_t spinner[spin_count] = {u'\u253C', u'\u251C', u'\u2514', u'\u2534', u'\u253C', u'\u252C', u'\u250C', u'\u251C', u'\u253C', u'\u2524', u'\u2510', u'\u252C', u'\u253C', u'\u2534', u'\u2518', u'\u2524'};
 
     uint_fast8_t spin_index = 0;
-    unsigned char *last_row_pixels;
 
     retval = optimize_state_init(&state, image, sliding_length);
     if (SUCCESS == retval) {
@@ -81,12 +80,6 @@ pngloss_error optimize_image(
     }
     if (SUCCESS == retval) {
         retval = optimize_state_init(&filter_state, image, sliding_length);
-    }
-    if (SUCCESS == retval) {
-        last_row_pixels = calloc((size_t)image->width, bytes_per_pixel);
-        if (!last_row_pixels) {
-            retval = OUT_OF_MEMORY_ERROR;
-        }
     }
     if (SUCCESS == retval) {
         struct timeval tp;
@@ -131,7 +124,6 @@ pngloss_error optimize_image(
                     uint32_t cost = optimize_state_row(
                         &filter_state,
                         image,
-                        last_row_pixels,
                         sliding_length,
                         max_run_length,
                         strength,
@@ -166,11 +158,6 @@ pngloss_error optimize_image(
             }
             //fprintf(stderr, "row %u best cost %u filter %u strength %u\n", (unsigned int)current_y, (unsigned int)best_cost, (unsigned int)best_filter, (unsigned int)best_strength);
             memcpy(
-                last_row_pixels,
-                image->rows[current_y],
-                image->width * bytes_per_pixel
-            );
-            memcpy(
                 image->rows[current_y],
                 best.pixels,
                 image->width * bytes_per_pixel
@@ -185,7 +172,6 @@ pngloss_error optimize_image(
     optimize_state_destroy(&state);
     optimize_state_destroy(&best);
     optimize_state_destroy(&filter_state);
-    free(last_row_pixels);
 
     return retval;
 }
