@@ -30,27 +30,23 @@ void optimizeForAverageFilter(
     //const uint_fast8_t bytes_per_pixel = 4;
     uint32_t stride = width * bytes_per_pixel;
 
-    uint_fast16_t sliding_length = 40;
-    const uint_fast8_t max_run_length = 14;
-    optimize_with_stride(pixels, width, height, stride, sliding_length, max_run_length, quantization_strength, false);
+    optimize_with_stride(pixels, width, height, stride, quantization_strength, false);
 }
 
 void optimize_with_stride(
     unsigned char *pixels, uint32_t width, uint32_t height,
-    uint32_t stride, uint_fast16_t sliding_length, uint_fast8_t max_run_length,
-    uint_fast8_t quantization_strength, bool verbose
+    uint32_t stride, uint_fast8_t quantization_strength, bool verbose
 ) {
     unsigned char **rows = malloc((size_t)height * sizeof(unsigned char *));
     for (uint32_t i = 0; i < height; i++) {
         rows[i] = pixels + i*stride;
     }
-    optimize_with_rows(rows, width, height, sliding_length, max_run_length, quantization_strength, verbose);
+    optimize_with_rows(rows, width, height, quantization_strength, verbose);
     free(rows);
 }
 
 pngloss_error optimize_with_rows(
     unsigned char **rows, uint32_t width, uint32_t height,
-    uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization_strength, bool verbose
 ) {
     pngloss_image image = {
@@ -58,14 +54,13 @@ pngloss_error optimize_with_rows(
         .width = width,
         .height = height,
     };
-    return optimize_image(&image, sliding_length, max_run_length, quantization_strength, verbose);
+    return optimize_image(&image, quantization_strength, verbose);
 }
 
 #define spin_count 4
 pngloss_error optimize_image(
-    pngloss_image *image, uint_fast16_t sliding_length,
-    uint_fast8_t max_run_length, uint_fast8_t quantization_strength,
-    bool verbose
+    pngloss_image *image,
+    uint_fast8_t quantization_strength, bool verbose
 ) {
     optimize_state state, best, filter_state;
     pngloss_error retval;
@@ -74,12 +69,12 @@ pngloss_error optimize_image(
 
     uint_fast8_t spin_index = 0;
 
-    retval = optimize_state_init(&state, image, sliding_length);
+    retval = optimize_state_init(&state, image);
     if (SUCCESS == retval) {
-        retval = optimize_state_init(&best, image, sliding_length);
+        retval = optimize_state_init(&best, image);
     }
     if (SUCCESS == retval) {
-        retval = optimize_state_init(&filter_state, image, sliding_length);
+        retval = optimize_state_init(&filter_state, image);
     }
     if (SUCCESS == retval) {
         struct timeval tp;
@@ -120,12 +115,10 @@ pngloss_error optimize_image(
                     }
 
                     // get to work
-                    optimize_state_copy(&filter_state, &state, image, sliding_length);
+                    optimize_state_copy(&filter_state, &state, image);
                     uint32_t cost = optimize_state_row(
                         &filter_state,
                         image,
-                        sliding_length,
-                        max_run_length,
                         strength,
                         best_cost,
                         filter
@@ -142,7 +135,7 @@ pngloss_error optimize_image(
                         best_filter = filter;
                         best_strength = strength;
                         found_best = true;
-                        optimize_state_copy(&best, &filter_state, image, sliding_length);
+                        optimize_state_copy(&best, &filter_state, image);
                     }
                 }
 
@@ -162,7 +155,7 @@ pngloss_error optimize_image(
                 best.pixels,
                 image->width * bytes_per_pixel
             );
-            optimize_state_copy(&state, &best, image, sliding_length);
+            optimize_state_copy(&state, &best, image);
         }
         // done with progress display, advance to next line for subsequent messages
         if (verbose) {

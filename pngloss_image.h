@@ -18,20 +18,14 @@ void optimizeForAverageFilter(
 );
 void optimize_with_stride(
     unsigned char *pixels, uint32_t width, uint32_t height,
-    uint32_t stride, uint_fast16_t sliding_length, uint_fast8_t max_run_length,
-    uint_fast8_t quantization_strength,
-    bool verbose
+    uint32_t stride, uint_fast8_t quantization_strength, bool verbose
 );
 pngloss_error optimize_with_rows(
     unsigned char **rows, uint32_t width, uint32_t height,
-    uint_fast16_t sliding_length, uint_fast8_t max_run_length,
-    uint_fast8_t quantization_strength,
-    bool verbose
+    uint_fast8_t quantization_strength, bool verbose
 );
 pngloss_error optimize_image(
-    pngloss_image *image, uint_fast16_t sliding_length,
-    uint_fast8_t max_run_length, uint_fast8_t quantization_strength,
-    bool verbose
+    pngloss_image *image, uint_fast8_t quantization_strength, bool verbose
 );
 
 #endif // PNGLOSS_IMAGE_H

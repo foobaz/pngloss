@@ -8,12 +8,12 @@
 // data structures
 typedef struct {
     uint32_t x, y;
-    unsigned char *sliding_window;
-    uint_fast16_t sliding_index;
     unsigned char *pixels;
     color_delta *color_error;
     uint32_t *symbol_frequency;
     unsigned long symbol_count;
+    uint32_t *orig_frequency;
+    uint32_t *row_orig_frequency;
 } optimize_state;
 
 typedef enum {
@@ -27,27 +27,27 @@ typedef enum {
 
 // function prototypes
 pngloss_error optimize_state_init(
-    optimize_state *state, pngloss_image *image, uint_fast16_t sliding_length
+    optimize_state *state, pngloss_image *image
 );
 void optimize_state_destroy(optimize_state *state);
 void optimize_state_copy(
     optimize_state *to,
     optimize_state *from,
-    pngloss_image *image,
-    uint_fast16_t sliding_length
+    pngloss_image *image
 );
 uint_fast8_t optimize_state_run(
     optimize_state *state, pngloss_image *image,
-    uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization, pngloss_filter filter
 );
 uint32_t optimize_state_row(
     optimize_state *state, pngloss_image *image,
-    uint_fast16_t sliding_length, uint_fast8_t max_run_length,
     uint_fast8_t quantization_strength, uint32_t best_cost,
     pngloss_filter filter
 );
-
+unsigned char filter_predict(
+    pngloss_image *image, uint32_t x, uint32_t y,
+    pngloss_filter filter, uint_fast8_t c, unsigned char left
+);
 void diffuse_color_error(
     optimize_state *state, pngloss_image *image, color_delta difference
 );

@@ -298,50 +298,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
     }
 
     if (SUCCESS == retval) {
-        uint_fast16_t sliding_length;
-        uint_fast8_t max_run_length;
-        // level => sliding length based on E3 series
-        // level => run length based on E48 series
-        switch (options->level) {
-        case 1:
-            sliding_length = 20;
-            max_run_length = 3;
-            break;
-        case 2:
-            sliding_length = 52;
-            max_run_length = 4;
-            break;
-        case 3:
-            sliding_length = 132;
-            max_run_length = 6;
-            break;
-        case 4:
-            sliding_length = 328;
-            max_run_length = 10;
-            break;
-        case 5:
-        default:
-            sliding_length = 824;
-            max_run_length = 14;
-            break;
-        case 6:
-            sliding_length = 2068;
-            max_run_length = 20;
-            break;
-        case 7:
-            sliding_length = 5192;
-            max_run_length = 30;
-            break;
-        case 8:
-            sliding_length = 13044;
-            max_run_length = 44;
-            break;
-        case 9:
-            sliding_length = 32768;
-            max_run_length = 64;
-            break;
-        }
-        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, sliding_length, max_run_length, options->strength, options->verbose);
+        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, options->strength, options->verbose);
 
         if (options->skip_if_larger) {
             output_image.maximum_file_size = input_image.file_size - 1;
