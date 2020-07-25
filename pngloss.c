@@ -304,40 +304,40 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
         // level => run length based on E48 series
         switch (options->level) {
         case 1:
-            sliding_length = 12;
+            sliding_length = 20;
             max_run_length = 3;
             break;
         case 2:
-            sliding_length = 24;
+            sliding_length = 52;
             max_run_length = 4;
             break;
         case 3:
-            sliding_length = 48;
+            sliding_length = 132;
             max_run_length = 6;
             break;
         case 4:
-            sliding_length = 100;
+            sliding_length = 328;
             max_run_length = 10;
             break;
         case 5:
         default:
-            sliding_length = 220;
+            sliding_length = 824;
             max_run_length = 14;
             break;
         case 6:
-            sliding_length = 472;
+            sliding_length = 2068;
             max_run_length = 20;
             break;
         case 7:
-            sliding_length = 1000;
+            sliding_length = 5192;
             max_run_length = 30;
             break;
         case 8:
-            sliding_length = 2200;
+            sliding_length = 13044;
             max_run_length = 44;
             break;
         case 9:
-            sliding_length = 8192;
+            sliding_length = 32768;
             max_run_length = 64;
             break;
         }

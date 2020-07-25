@@ -2,8 +2,8 @@
 
 CC ?= /usr/bin/cc
 #CFLAGS = -g -Og -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
-CFLAGS = -O3 -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
-#CFLAGS = -O3 -Wall -Wextra -I/usr/local/include
+#CFLAGS = -O3 -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
+CFLAGS = -O3 -Wall -Wextra -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lpng
 VERSION = 0.4
 
@@ -11,7 +11,7 @@ BIN ?= pngloss
 BINPREFIX ?= $(DESTDIR)$(PREFIX)/bin
 MANPREFIX ?= $(DESTDIR)$(PREFIX)/share/man
 
-OBJS = color_delta.o optimize_state.o pngloss_filters.o pngloss_image.o pngloss_opts.o pngloss.o rwpng.o
+OBJS = color_delta.o optimize_state.o pngloss_image.o pngloss_opts.o pngloss.o rwpng.o
 
 DISTFILES = Makefile README.md COPYRIGHT
 TARNAME = pngloss-$(VERSION)

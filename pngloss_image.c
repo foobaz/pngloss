@@ -15,14 +15,12 @@
  <http://www.gnu.org/copyleft/gpl.html>
 */
 
-#include <png.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 
 #include "optimize_state.h"
-#include "pngloss_filters.h"
 #include "pngloss_image.h"
 #include "rwpng.h"
 
@@ -63,7 +61,6 @@ pngloss_error optimize_with_rows(
     return optimize_image(&image, sliding_length, max_run_length, quantization_strength, verbose);
 }
 
-#define filter_count 5
 #define spin_count 4
 pngloss_error optimize_image(
     pngloss_image *image, uint_fast16_t sliding_length,
@@ -71,20 +68,6 @@ pngloss_error optimize_image(
     bool verbose
 ) {
     optimize_state state, best, filter_state;
-    unsigned char filter_names[filter_count] = {
-        PNG_FILTER_NONE,
-        PNG_FILTER_SUB,
-        PNG_FILTER_UP,
-        PNG_FILTER_AVG,
-        PNG_FILTER_PAETH,
-    };
-    unsigned char (*filter_functions[filter_count])(unsigned char, unsigned char, unsigned char) = {
-        pngloss_filter_none,
-        pngloss_filter_sub,
-        pngloss_filter_up,
-        pngloss_filter_average,
-        pngloss_filter_paeth,
-    };
     pngloss_error retval;
     int spinner[spin_count] = {'-', '/', '|', '\\'};
     //wint_t spinner[spin_count] = {u'\u253C', u'\u251C', u'\u2514', u'\u2534', u'\u253C', u'\u252C', u'\u250C', u'\u251C', u'\u253C', u'\u2524', u'\u2510', u'\u252C', u'\u253C', u'\u2534', u'\u2518', u'\u2524'};
@@ -113,11 +96,11 @@ pngloss_error optimize_image(
             uint32_t current_y = state.y;
             uint32_t best_cost = -1;
             uint32_t best_strength = 0;
-            uint_fast8_t best_index = 0;
+            uint_fast8_t best_filter = 0;
             bool found_best = false;
             uint_fast8_t strength = quantization_strength;
             while (!found_best) {
-                for (uint_fast8_t i = 0; i < filter_count; i++) {
+                for (pngloss_filter filter = 0; filter < pngloss_filter_count; filter++) {
                     if (verbose) {
                         // print progress display
                         int err;
@@ -133,11 +116,11 @@ pngloss_error optimize_image(
                             }
                         }
 
-                        uint_fast8_t j = i;
+                        uint_fast8_t progress = filter;
                         if (strength != quantization_strength) {
-                            j = filter_count;
+                            progress = pngloss_filter_count;
                         }
-                        float percent = 100.0f * (float)(current_y * (filter_count + 1) + j) / (float)(image->height * (filter_count + 1));
+                        float percent = 100.0f * (float)(current_y * (pngloss_filter_count + 1) + progress) / (float)(image->height * (pngloss_filter_count + 1));
 
                         fprintf(stderr, "\x1B[\x01G%c %.1f%% complete", spinner[spin_index], percent);
                         fflush(stderr);
@@ -153,8 +136,7 @@ pngloss_error optimize_image(
                         max_run_length,
                         strength,
                         best_cost,
-                        filter_names[i],
-                        filter_functions[i]
+                        filter
                     );
                     /*
                     fprintf(stderr, "filter %d costs %u\n", (int)i, (unsigned int)cost);
@@ -165,7 +147,7 @@ pngloss_error optimize_image(
 
                     if (best_cost > cost) {
                         best_cost = cost;
-                        best_index = i;
+                        best_filter = filter;
                         best_strength = strength;
                         found_best = true;
                         optimize_state_copy(&best, &filter_state, image, sliding_length);
@@ -182,7 +164,7 @@ pngloss_error optimize_image(
                 // if no filter succeeds, try again at lower quantization strength
                 strength--;
             }
-            //fprintf(stderr, "row %u best cost %u at index %u strength %u\n", (unsigned int)current_y, (unsigned int)best_cost, (unsigned int)best_index, (unsigned int)best_strength);
+            //fprintf(stderr, "row %u best cost %u filter %u strength %u\n", (unsigned int)current_y, (unsigned int)best_cost, (unsigned int)best_filter, (unsigned int)best_strength);
             memcpy(
                 last_row_pixels,
                 image->rows[current_y],
