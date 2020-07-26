@@ -12,8 +12,6 @@ typedef struct {
     color_delta *color_error;
     uint32_t *symbol_frequency;
     unsigned long symbol_count;
-    uint32_t *orig_frequency;
-    uint32_t *row_orig_frequency;
 } optimize_state;
 
 typedef enum {

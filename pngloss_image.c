@@ -83,7 +83,7 @@ pngloss_error optimize_image(
         while (state.y < image->height) {
             uint32_t current_y = state.y;
             uint32_t best_cost = -1;
-            uint32_t best_strength = 0;
+            uint_fast8_t best_strength = 0;
             uint_fast8_t best_filter = 0;
             bool found_best = false;
             uint_fast8_t strength = quantization_strength;

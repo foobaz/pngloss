@@ -5,7 +5,7 @@
 
 #include "optimize_state.h"
 
-const uint_fast8_t dither_row_count = 2;
+const uint_fast8_t dither_row_count = 3;
 const uint_fast8_t dither_filter_width = 5;
 const uint_fast16_t symbol_count = 285;
 
@@ -20,8 +20,6 @@ pngloss_error optimize_state_init(
     state->pixels = NULL;
     state->color_error = NULL;
     state->symbol_frequency = NULL;
-    state->orig_frequency = NULL;
-    state->row_orig_frequency = NULL;
 
     state->pixels = calloc((size_t)image->width, bytes_per_pixel);
     if (!state->pixels) {
@@ -39,34 +37,6 @@ pngloss_error optimize_state_init(
         return OUT_OF_MEMORY_ERROR;
     }
 
-    state->orig_frequency = calloc(symbol_count * pngloss_filter_count, sizeof(uint32_t));
-    if (!state->orig_frequency) {
-        return OUT_OF_MEMORY_ERROR;
-    }
-
-    state->row_orig_frequency = calloc(symbol_count, sizeof(uint32_t));
-    if (!state->row_orig_frequency) {
-        return OUT_OF_MEMORY_ERROR;
-    }
-
-    for (uint32_t y = 0; y < image->height; y++) {
-        for (uint32_t x = 0; x < image->width; x++) {
-            for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
-                uint32_t offset = x*bytes_per_pixel + c;
-                unsigned char left = 0;
-                if (x > 0) {
-                    left = image->rows[y][offset-bytes_per_pixel];
-                }
-                unsigned char color = image->rows[y][offset];
-                for (uint_fast8_t filter = 0; filter < pngloss_filter_count; filter++) {
-                    unsigned char predicted = filter_predict(image, x, y, filter, c, left);
-                    unsigned char filtered_value = color - predicted;
-                    state->orig_frequency[symbol_count * filter + filtered_value]++;
-                }
-            }
-        }
-    }
-
     return SUCCESS;
 }
 
@@ -74,8 +44,6 @@ void optimize_state_destroy(optimize_state *state) {
     free(state->pixels);
     free(state->color_error);
     free(state->symbol_frequency);
-    free(state->orig_frequency);
-    free(state->row_orig_frequency);
 }
 
 void optimize_state_copy(
@@ -105,7 +73,7 @@ uint_fast8_t optimize_state_run(
     for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
         uint32_t offset = state->x*bytes_per_pixel + c;
         back_color[c] = image->rows[state->y][offset];
-        here_color[c] = back_color[c] + state->color_error[state->x+2][c];
+        here_color[c] = back_color[c] + state->color_error[state->x+dither_filter_width/2][c];
 
         unsigned char left = 0;
         if (state->x > 0) {
@@ -117,30 +85,30 @@ uint_fast8_t optimize_state_run(
         int_fast16_t original = back_color[c] - predicted;
         unsigned char best_close_value = original;
 
-        int_fast16_t half_strength = quantization_strength / 2;
-        if (c == 2) {
-            half_strength /= 2;
+        int_fast16_t strength = quantization_strength;
+        if (c == 1) {
+            // human eye is most sensitive to green
+            strength /= 2;
         }
-        int_fast16_t min = filtered_value - half_strength;
+        int_fast16_t min = (filtered_value * 2 - (int_fast16_t)strength) / 2;
+        // include original because it's known to be in 0-255
         if (min > original) {
             min = original;
         }
-        int_fast16_t max = filtered_value + half_strength;
+        int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + 1) / 2;
         if (max < original) {
             max = original;
         }
-
-        //fprintf(stderr, "%u starting %u min %d max %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)min, (int)max); 
+        //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
+        int_fast16_t window_width = 1 + max - min;
         uint32_t best_frequency = 0;
         for (int_fast16_t close_value = min; close_value <= max; close_value++) {
             int_fast16_t back = close_value + predicted;
             if (back >= 0 && back <= 255) {
                 unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
-                //unsigned long frequency = state->symbol_frequency[(unsigned char)close_value] + state->row_orig_frequency[(unsigned char)close_value];
-                //unsigned long frequency = state->symbol_frequency[(unsigned char)close_value] + state->orig_frequency[pngloss_filter_count * filter + (unsigned char)close_value];
-                //unsigned long frequency = state->orig_frequency[pngloss_filter_count * filter + (unsigned char)close_value];
                 unsigned long bias = abs(close_value - filtered_value);
                 if (best_frequency + bias < frequency) {
+                //if (best_frequency < frequency) {
                     best_frequency = frequency;
                     best_close_value = close_value;
                     back_color[c] = back;
@@ -172,20 +140,6 @@ uint32_t optimize_state_row(
     uint_fast8_t quantization_strength, uint32_t best_cost,
     pngloss_filter filter
 ) {
-    memset(state->row_orig_frequency, 0, symbol_count * sizeof(uint32_t));
-    for (uint32_t x = 0; x < image->width; x++) {
-        for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
-            uint32_t offset = x*bytes_per_pixel + c;
-            unsigned char color = image->rows[state->y][offset];
-            unsigned char left = 0;
-            if (x > 0) {
-                left = image->rows[state->y][offset-bytes_per_pixel];
-            }
-            unsigned char predicted = filter_predict(image, x, state->y, filter, c, left);
-            unsigned char filtered_value = color - predicted;
-            state->row_orig_frequency[filtered_value]++;
-        }
-    }
     uint32_t total_cost = 0;
     while (state->x < image->width) {
         uint_fast8_t cost = optimize_state_run(
@@ -263,7 +217,26 @@ void diffuse_color_error(
     for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
         int_fast16_t d = difference[c];
 
-        // perform two-row sierra dithering
+        /*
+        // floyd-steinberg dithering
+        int_fast16_t one = d / 16;
+        d -= one;
+        state->color_error[error_width + state->x + 3][c] += one;
+
+        int_fast16_t three = d / 5;
+        d -= three;
+        state->color_error[error_width + state->x + 1][c] += three;
+
+        int_fast16_t five = d * 5/12;
+        d -= five;
+        state->color_error[error_width + state->x + 2][c] += five;
+
+        int_fast16_t seven = d;
+        state->color_error[state->x + 3][c] += seven;
+        */
+
+        /*
+        // two-row sierra dithering
         int_fast16_t ones = d / 16;
         d -= ones * 2;
         state->color_error[error_width + state->x + 0][c] += ones;
@@ -284,6 +257,52 @@ void diffuse_color_error(
         //int_fast16_t four = d / 4;
         int_fast16_t four = d;
         state->color_error[state->x + 3][c] += four;
+        */
+
+        /*
+        // sierra dithering
+        int_fast16_t twos = d / 16;
+        d -= twos * 4;
+        state->color_error[error_width * 1 + state->x + 0][c] += twos;
+        state->color_error[error_width * 1 + state->x + 4][c] += twos;
+        state->color_error[error_width * 2 + state->x + 1][c] += twos;
+        state->color_error[error_width * 2 + state->x + 3][c] += twos;
+
+        int_fast16_t threes = d / 8;
+        d -= threes * 2;
+        state->color_error[error_width * 0 + state->x + 4][c] += threes;
+        state->color_error[error_width * 3 + state->x + 2][c] += threes;
+
+        int_fast16_t fours = d * 2/9;
+        d -= fours * 2;
+        state->color_error[error_width * 1 + state->x + 1][c] += fours;
+        state->color_error[error_width * 1 + state->x + 3][c] += fours;
+
+        int_fast16_t five = d / 2;
+        d -= five;
+        state->color_error[error_width * 1 + state->x + 2][c] += five;
+
+        state->color_error[error_width * 0 + state->x + 3][c] += d;
+        */
+
+        // sierra dithering, reduced color bleed
+        int_fast16_t twos = d / 16;
+        state->color_error[error_width * 1 + state->x + 0][c] += twos;
+        state->color_error[error_width * 1 + state->x + 4][c] += twos;
+        state->color_error[error_width * 2 + state->x + 1][c] += twos;
+        state->color_error[error_width * 2 + state->x + 3][c] += twos;
+
+        int_fast16_t threes = d * 3 / 32;
+        state->color_error[error_width * 0 + state->x + 4][c] += threes;
+        state->color_error[error_width * 3 + state->x + 2][c] += threes;
+
+        int_fast16_t fours = d / 8;
+        state->color_error[error_width * 1 + state->x + 1][c] += fours;
+        state->color_error[error_width * 1 + state->x + 3][c] += fours;
+
+        int_fast16_t five = d * 5 / 32;
+        state->color_error[error_width * 0 + state->x + 3][c] += five;
+        state->color_error[error_width * 1 + state->x + 2][c] += five;
     }
 }
 
