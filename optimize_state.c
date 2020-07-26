@@ -100,16 +100,28 @@ uint_fast8_t optimize_state_run(
             max = original;
         }
         //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
-        int_fast16_t window_width = 1 + max - min;
-        uint32_t best_frequency = 0;
+        int_fast16_t lower_width = 1 + filtered_value - min;
+        int_fast16_t upper_width = 1 + max - filtered_value;
+        unsigned long best_frequency = 0;
+        unsigned long best_width = 1;
         for (int_fast16_t close_value = min; close_value <= max; close_value++) {
             int_fast16_t back = close_value + predicted;
             if (back >= 0 && back <= 255) {
                 unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
-                unsigned long bias = abs(close_value - filtered_value);
-                if (best_frequency + bias < frequency) {
+                unsigned long width = 1;
+                if (close_value < filtered_value) {
+                    frequency *= lower_width + close_value - filtered_value;
+                    width = lower_width;
+                } else if (close_value > filtered_value) {
+                    frequency *= upper_width + filtered_value - close_value;
+                    width = upper_width;
+                }
+                //unsigned long bias = abs(close_value - filtered_value);
+                //if (best_frequency + bias < frequency) {
                 //if (best_frequency < frequency) {
+                if (best_frequency * width < frequency * best_width) {
                     best_frequency = frequency;
+                    best_width = width;
                     best_close_value = close_value;
                     back_color[c] = back;
                 }
@@ -217,6 +229,9 @@ void diffuse_color_error(
     for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
         int_fast16_t d = difference[c];
 
+        // reduce color bleed - only propagate half of error
+        d = d / 2;
+
         /*
         // floyd-steinberg dithering
         int_fast16_t one = d / 16;
@@ -259,7 +274,6 @@ void diffuse_color_error(
         state->color_error[state->x + 3][c] += four;
         */
 
-        /*
         // sierra dithering
         int_fast16_t twos = d / 16;
         d -= twos * 4;
@@ -283,8 +297,8 @@ void diffuse_color_error(
         state->color_error[error_width * 1 + state->x + 2][c] += five;
 
         state->color_error[error_width * 0 + state->x + 3][c] += d;
-        */
 
+        /*
         // sierra dithering, reduced color bleed
         int_fast16_t twos = d / 16;
         state->color_error[error_width * 1 + state->x + 0][c] += twos;
@@ -303,6 +317,7 @@ void diffuse_color_error(
         int_fast16_t five = d * 5 / 32;
         state->color_error[error_width * 0 + state->x + 3][c] += five;
         state->color_error[error_width * 1 + state->x + 2][c] += five;
+        */
     }
 }
 
