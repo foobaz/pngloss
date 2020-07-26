@@ -102,7 +102,10 @@ void rwpng_version_info(FILE *fp);
 
 pngloss_error rwpng_read_image24(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose);
 pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr);
-pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr);
+pngloss_error rwpng_write_image24(
+    FILE *outfile, png24_image *mainprog_ptr,
+    unsigned long quantization_strength
+);
 void rwpng_free_image24(png24_image *);
 void rwpng_free_image8(png8_image *);
 

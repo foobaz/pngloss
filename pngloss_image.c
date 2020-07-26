@@ -88,6 +88,7 @@ pngloss_error optimize_image(
             bool found_best = false;
             uint_fast8_t strength = quantization_strength;
             while (!found_best) {
+            //for (uint_fast8_t strength = 0; strength <= quantization_strength; strength++)
                 for (pngloss_filter filter = 0; filter < pngloss_filter_count; filter++) {
                     if (verbose) {
                         // print progress display

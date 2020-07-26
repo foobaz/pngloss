@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
         return SUCCESS;
     }
 
-    if (options.strength > 100) {
-        fputs("Must specify a strength in the range 0-100.\n", stderr);
+    if (options.strength > 255) {
+        fputs("Must specify a strength in the range 0-255.\n", stderr);
         return INVALID_ARGUMENT;
     }
 
@@ -446,7 +446,7 @@ static pngloss_error write_image(png8_image *output_image, png24_image *output_i
         if (output_image) {
             retval = rwpng_write_image8(outfile, output_image);
         } else {
-            retval = rwpng_write_image24(outfile, output_image24);
+            retval = rwpng_write_image24(outfile, output_image24, options->strength);
         }
     }
 

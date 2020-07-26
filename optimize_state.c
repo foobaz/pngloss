@@ -83,51 +83,56 @@ uint_fast8_t optimize_state_run(
         int_fast16_t filtered_value = here_color[c] - predicted;
 
         int_fast16_t original = back_color[c] - predicted;
-        unsigned char best_close_value = original;
+        unsigned char best_close_value;
 
-        int_fast16_t strength = quantization_strength;
-        if (c == 1) {
-            // human eye is most sensitive to green
-            strength /= 2;
-        }
-        int_fast16_t min = (filtered_value * 2 - (int_fast16_t)strength) / 2;
-        // include original because it's known to be in 0-255
-        if (min > original) {
-            min = original;
-        }
-        int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + 1) / 2;
-        if (max < original) {
-            max = original;
-        }
-        //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
-        int_fast16_t lower_width = 1 + filtered_value - min;
-        int_fast16_t upper_width = 1 + max - filtered_value;
-        unsigned long best_frequency = 0;
-        unsigned long best_width = 1;
-        for (int_fast16_t close_value = min; close_value <= max; close_value++) {
-            int_fast16_t back = close_value + predicted;
-            if (back >= 0 && back <= 255) {
-                unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
-                unsigned long width = 1;
-                if (close_value < filtered_value) {
-                    frequency *= lower_width + close_value - filtered_value;
-                    width = lower_width;
-                } else if (close_value > filtered_value) {
-                    frequency *= upper_width + filtered_value - close_value;
-                    width = upper_width;
-                }
-                //unsigned long bias = abs(close_value - filtered_value);
-                //if (best_frequency + bias < frequency) {
-                //if (best_frequency < frequency) {
-                if (best_frequency * width < frequency * best_width) {
-                    best_frequency = frequency;
-                    best_width = width;
-                    best_close_value = close_value;
-                    back_color[c] = back;
+        // for quality, pass full black, white, transparent, and opaque through unchanged
+        if (back_color[c] == 0) {
+            best_close_value = 0 - predicted;
+        } else if (back_color[c] == 255) {
+            best_close_value = 255 - predicted;
+        } else {
+            int_fast16_t strength = quantization_strength;
+            if (bytes_per_pixel >= 3 && c == 1) {
+                // human eye is most sensitive to green
+                strength /= 2;
+            }
+            int_fast16_t min = (filtered_value * 2 - (int_fast16_t)strength) / 2;
+            // include original because it's known to be in 0-255
+            if (min > original) {
+                min = original;
+            }
+            int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + 1) / 2;
+            if (max < original) {
+                max = original;
+            }
+            //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
+            int_fast16_t lower_width = 1 + filtered_value - min;
+            int_fast16_t upper_width = 1 + max - filtered_value;
+            unsigned long best_frequency = 0;
+            unsigned long best_width = 1;
+            best_close_value = original;
+            for (int_fast16_t close_value = min; close_value <= max; close_value++) {
+                int_fast16_t back = close_value + predicted;
+                if (back >= 0 && back <= 255) {
+                    unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
+                    unsigned long width = 1;
+                    if (close_value < filtered_value) {
+                        frequency *= lower_width + close_value - filtered_value;
+                        width = lower_width;
+                    } else if (close_value > filtered_value) {
+                        frequency *= upper_width + filtered_value - close_value;
+                        width = upper_width;
+                    }
+                    if (best_frequency * width < frequency * best_width) {
+                        best_frequency = frequency;
+                        best_width = width;
+                        best_close_value = close_value;
+                        back_color[c] = back;
+                    }
                 }
             }
+            //fprintf(stderr, "%u orig %u here %d best %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)here_color[c], (int)back_color[c]); 
         }
-        //fprintf(stderr, "%u orig %u here %d best %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)here_color[c], (int)back_color[c]); 
 
         state->pixels[offset] = back_color[c];
 

@@ -614,8 +614,10 @@ pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
     return write_state.retval;
 }
 
-pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
-{
+pngloss_error rwpng_write_image24(
+    FILE *outfile, png24_image *mainprog_ptr,
+    unsigned long quantization_strength
+) {
     png_structp png_ptr;
     png_infop info_ptr;
 
@@ -655,7 +657,25 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
         chunk_num++;
     }
 
-    bool grayscale = false;
+    // autodetect grayscale and alpha
+    bool grayscale = true;
+    bool strip_alpha = true;
+    for (uint32_t y = 0; y < mainprog_ptr->height; y++) {
+        for (uint32_t x = 0; x < mainprog_ptr->width; x++) {
+            unsigned char *pixel = mainprog_ptr->row_pointers[y] + x*4;
+            if (
+                (unsigned long)abs((int)pixel[1] - (int)pixel[0]) > quantization_strength ||
+                (unsigned long)abs((int)pixel[1] - (int)pixel[2]) > quantization_strength
+            ) {
+                grayscale = false;
+            }
+            if (pixel[3] == 0 || (unsigned long)pixel[3] + quantization_strength < 255) {
+                strip_alpha = false;
+            }
+        }
+    }
+
+    // saving grayscale requires different pixel format
     unsigned char *gray_data = NULL;
     if (grayscale) {
         uint32_t width = mainprog_ptr->width;
@@ -665,8 +685,10 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
         if (gray_data) {
             for (uint32_t y = 0; y < height; y++) {
                 for (uint32_t x = 0; x < width; x++) {
-                    gray_data[y*rowbytes + x*2 + 0] = mainprog_ptr->row_pointers[y][x*4 + 1];
-                    gray_data[y*rowbytes + x*2 + 1] = mainprog_ptr->row_pointers[y][x*4 + 3];
+                    unsigned char *pixel = mainprog_ptr->row_pointers[y] + x*4;
+                    // green to luminance and alpha to alpha
+                    gray_data[y*rowbytes + x*2 + 0] = pixel[1];
+                    gray_data[y*rowbytes + x*2 + 1] = pixel[3];
                 }
             }
         } else {
@@ -674,7 +696,6 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr)
         }
     }
 
-    bool strip_alpha = true;
     int color_type;
     if (grayscale) {
         if (strip_alpha) {
