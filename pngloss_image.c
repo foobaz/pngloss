@@ -25,9 +25,9 @@
 #include "rwpng.h"
 
 void optimizeForAverageFilter(
-    unsigned char *pixels, int width, int height, int quantization_strength
+    unsigned char pixels[], int width, int height, int quantization_strength
 ) {
-    //const uint_fast8_t bytes_per_pixel = 4;
+    const uint_fast8_t bytes_per_pixel = 4;
     uint32_t stride = width * bytes_per_pixel;
 
     optimize_with_stride(pixels, width, height, stride, quantization_strength, false);
@@ -49,12 +49,108 @@ pngloss_error optimize_with_rows(
     unsigned char **rows, uint32_t width, uint32_t height,
     uint_fast8_t quantization_strength, bool verbose
 ) {
-    pngloss_image image = {
+    pngloss_error retval = SUCCESS;
+    pngloss_image original_image = {
         .rows = rows,
         .width = width,
         .height = height,
+        .bytes_per_pixel = 4
     };
-    return optimize_image(&image, quantization_strength, verbose);
+    bool grayscale = true;
+    bool strip_alpha = true;
+
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            unsigned char *pixel = rows[y] + x*4;
+            if (
+                (unsigned long)abs((int)pixel[1] - (int)pixel[0]) > quantization_strength ||
+                (unsigned long)abs((int)pixel[1] - (int)pixel[2]) > quantization_strength
+            ) {
+                grayscale = false;
+            }
+            if (pixel[3] == 0 || (unsigned long)pixel[3] + quantization_strength < 255) {
+                strip_alpha = false;
+            }
+        }
+        if (!grayscale && !strip_alpha) {
+            break;
+        }
+    }
+    if (grayscale || strip_alpha) {
+        pngloss_image image = {
+            .width = width,
+            .height = height
+        };
+
+        if (grayscale && strip_alpha) {
+            image.bytes_per_pixel = 1;
+        } else if (grayscale) {
+            image.bytes_per_pixel = 2;
+        } else {
+            image.bytes_per_pixel = 3;
+        }
+
+        image.rows = malloc((size_t)height * sizeof(unsigned char **));
+        unsigned char *pixels = malloc((size_t)height * width * image.bytes_per_pixel);
+
+        if (!image.rows || !pixels) {
+            retval = OUT_OF_MEMORY_ERROR;
+        }
+
+        // Copying to and from like this is not the most efficient, but it
+        // shields the caller from worrying about pixel format and it's
+        // much faster than performing the optimization.
+        if (SUCCESS == retval) {
+            for (uint32_t y = 0; y < height; y++) {
+                image.rows[y] = pixels + (size_t)y * width * image.bytes_per_pixel;
+                for (uint32_t x = 0; x < width; x++) {
+                    unsigned char *original = rows[y] + (size_t)x*4;
+                    unsigned char *pixel = image.rows[y] + (size_t)x*image.bytes_per_pixel;
+                    if (grayscale && strip_alpha) {
+                        pixel[0] = original[1];
+                    } else if (grayscale) {
+                        pixel[0] = original[1];
+                        pixel[1] = original[3];
+                    } else {
+                        pixel[0] = original[0];
+                        pixel[1] = original[1];
+                        pixel[2] = original[2];
+                    }
+                }
+            }
+            retval = optimize_image(&image, quantization_strength, verbose);
+        }
+        if (SUCCESS == retval) {
+            for (uint32_t y = 0; y < height; y++) {
+                for (uint32_t x = 0; x < width; x++) {
+                    unsigned char *original = rows[y] + (size_t)x*4;
+                    unsigned char *pixel = image.rows[y] + (size_t)x*image.bytes_per_pixel;
+                    if (grayscale && strip_alpha) {
+                        original[0] = pixel[0];
+                        original[1] = pixel[0];
+                        original[2] = pixel[0];
+                        original[3] = 255;
+                    } else if (grayscale) {
+                        original[0] = pixel[0];
+                        original[1] = pixel[0];
+                        original[2] = pixel[0];
+                        original[3] = pixel[1];
+                    } else {
+                        original[0] = pixel[0];
+                        original[1] = pixel[1];
+                        original[2] = pixel[2];
+                        original[3] = 255;
+                    }
+                }
+            }
+        }
+        free(pixels);
+        free(image.rows);
+    } else {
+        retval = optimize_image(&original_image, quantization_strength, verbose);
+    }
+
+    return retval;
 }
 
 #define spin_count 4
@@ -154,7 +250,7 @@ pngloss_error optimize_image(
             memcpy(
                 image->rows[current_y],
                 best.pixels,
-                image->width * bytes_per_pixel
+                image->width * image->bytes_per_pixel
             );
             optimize_state_copy(&state, &best, image);
         }

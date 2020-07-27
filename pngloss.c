@@ -37,9 +37,6 @@ usage:  pngloss [options] -- pngfile [pngfile ...]\n\
         pngloss [options] - >stdout <stdin\n\n\
 options:\n\
   -s, --strength 20 how much quality to sacrifice, from 0 to 100 (default 20)\n\
-  -1, --fast        compress as fast as possible\n\
-  -5                default compression speed\n\
-  -9, --best        compress as well as possible\n\
   -f, --force       overwrite existing output files\n\
   -o, --output file destination file path to use instead of --ext\n\
   -v, --verbose     print status messages\n\
@@ -51,7 +48,7 @@ options:\n\
 \n\
 Lossily compresses a PNG by using more compressible colors that are\n\
 close enough to the original color values. The threshold determining\n\
-what is close enough is controlled by the quality parameter. The output\n\
+what is close enough is controlled by the strength parameter. The output\n\
 filename is the same as the input name except that it ends in \"-loss.png\"\n\
 or your custom extension (unless the input is stdin, in which case the\n\
 compressed image will go to stdout).  If you pass the special output path\n\
@@ -109,7 +106,6 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
 int main(int argc, char *argv[])
 {
     struct pngloss_options options = {
-        .level = 5,
         .strength = 20,
     };
 
@@ -446,7 +442,7 @@ static pngloss_error write_image(png8_image *output_image, png24_image *output_i
         if (output_image) {
             retval = rwpng_write_image8(outfile, output_image);
         } else {
-            retval = rwpng_write_image24(outfile, output_image24, options->strength);
+            retval = rwpng_write_image24(outfile, output_image24);
         }
     }
 

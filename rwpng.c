@@ -614,10 +614,7 @@ pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
     return write_state.retval;
 }
 
-pngloss_error rwpng_write_image24(
-    FILE *outfile, png24_image *mainprog_ptr,
-    unsigned long quantization_strength
-) {
+pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
     png_structp png_ptr;
     png_infop info_ptr;
 
@@ -663,13 +660,10 @@ pngloss_error rwpng_write_image24(
     for (uint32_t y = 0; y < mainprog_ptr->height; y++) {
         for (uint32_t x = 0; x < mainprog_ptr->width; x++) {
             unsigned char *pixel = mainprog_ptr->row_pointers[y] + x*4;
-            if (
-                (unsigned long)abs((int)pixel[1] - (int)pixel[0]) > quantization_strength ||
-                (unsigned long)abs((int)pixel[1] - (int)pixel[2]) > quantization_strength
-            ) {
+            if (pixel[0] != pixel[1] || pixel[1] != pixel[2]) {
                 grayscale = false;
             }
-            if (pixel[3] == 0 || (unsigned long)pixel[3] + quantization_strength < 255) {
+            if (pixel[3] < 255) {
                 strip_alpha = false;
             }
         }

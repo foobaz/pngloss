@@ -3,18 +3,16 @@
 
 #include "rwpng.h"
 
-#define bytes_per_pixel 4
-
 // data structures
 typedef struct {
     unsigned char **rows;
     uint32_t width, height;
-    //uint_fast8_t bytes_per_pixel;
+    uint_fast8_t bytes_per_pixel;
 } pngloss_image;
 
 // function prototypes
 void optimizeForAverageFilter(
-    unsigned char *pixels, int width, int height, int quantization
+    unsigned char pixels[], int width, int height, int quantization
 );
 void optimize_with_stride(
     unsigned char *pixels, uint32_t width, uint32_t height,

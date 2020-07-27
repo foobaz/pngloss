@@ -27,17 +27,13 @@ improve the lossy compression algorithm.
 `-s`, `--strength`
 How much quality to sacrifice, from 0 to 100 (default 20). Strength 0 is
 lossless and does not modify the pixel data, although it may convert
-colorspace or strip PNG chunks. Minimal effect on compression speed.
-
-`-1`-`-9`, `--fast`, `--best`
-How much time to spend on compression (default 5). Higher levels result in
-smaller output files but have a minimal effect on image quality.
+colorspace or strip PNG chunks.
 
 `-v`, `--verbose`
 Verbose - print additional information about compression.
 
 `-q`, `--quiet`
-Quiet - don't print information about compression.
+Quiet - don't print information about compression (the default).
 
 `-f`, `--force`
 Force - overwrite existing output image.

@@ -83,11 +83,13 @@ pngloss_error pngloss_parse_options(int argc, char *argv[], struct pngloss_optio
                 options->print_version = true;
                 break;
 
+            /*
             case '1': case '2': case '3':
             case '4': case '5': case '6':
             case '7': case '8': case '9':
                 options->level = opt - '0';
                 break;
+            */
 
             case 's':
                 strength = strtoul(optarg, &strength_end, 10);

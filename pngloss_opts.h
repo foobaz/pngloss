@@ -6,7 +6,7 @@ struct pngloss_options {
     const char *output_file_path;
     char *const *files;
     unsigned long strength;
-    unsigned int level;
+    //unsigned int level;
     unsigned int num_files;
     bool using_stdin, using_stdout, force,
         min_quality_limit, skip_if_larger, strip,

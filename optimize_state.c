@@ -1,3 +1,19 @@
+/**
+ © 2020 William MacKay.
+ Based on algorithms by Michael Vinther and William MacKay.
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ See the GNU General Public License for more details:
+ <http://www.gnu.org/copyleft/gpl.html>
+*/
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +37,7 @@ pngloss_error optimize_state_init(
     state->color_error = NULL;
     state->symbol_frequency = NULL;
 
-    state->pixels = calloc((size_t)image->width, bytes_per_pixel);
+    state->pixels = calloc((size_t)image->width, image->bytes_per_pixel);
     if (!state->pixels) {
         return OUT_OF_MEMORY_ERROR;
     }
@@ -54,7 +70,7 @@ void optimize_state_copy(
     to->x = from->x;
     to->y = from->y;
 
-    memcpy(to->pixels, from->pixels, (size_t)image->width * bytes_per_pixel);
+    memcpy(to->pixels, from->pixels, (size_t)image->width * image->bytes_per_pixel);
 
     uint32_t error_width = image->width + dither_filter_width - 1;
     memcpy(to->color_error, from->color_error, (size_t)dither_row_count * error_width * sizeof(color_delta));
@@ -70,14 +86,21 @@ uint_fast8_t optimize_state_run(
     int_fast16_t back_color[4];
     int_fast16_t here_color[4];
     uint_fast8_t symbol_cost = 0;
-    for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
-        uint32_t offset = state->x*bytes_per_pixel + c;
+    for (uint_fast8_t c = 0; c < image->bytes_per_pixel; c++) {
+        uint32_t offset = state->x*image->bytes_per_pixel + c;
         back_color[c] = image->rows[state->y][offset];
+        uint_fast8_t i = c;
+        // convert from pixel index to color delta index
+        if (image->bytes_per_pixel == 2 && c == 1) {
+            // pixel alpha and color delta alpha are at different
+            // indexes when colorspace is gray+alpha
+            i = 3;
+        }
         here_color[c] = back_color[c] + state->color_error[state->x+dither_filter_width/2][c];
 
         unsigned char left = 0;
         if (state->x > 0) {
-            left = state->pixels[offset-bytes_per_pixel];
+            left = state->pixels[offset-image->bytes_per_pixel];
         }
         unsigned char predicted = filter_predict(image, state->x, state->y, filter, c, left);
         int_fast16_t filtered_value = here_color[c] - predicted;
@@ -88,11 +111,11 @@ uint_fast8_t optimize_state_run(
         // for quality, pass full black, white, transparent, and opaque through unchanged
         if (back_color[c] == 0) {
             best_close_value = 0 - predicted;
-        } else if (back_color[c] == 255) {
+        } else if (back_color[c] == 255 && here_color[c] >= 255) {
             best_close_value = 255 - predicted;
         } else {
             int_fast16_t strength = quantization_strength;
-            if (bytes_per_pixel >= 3 && c == 1) {
+            if (image->bytes_per_pixel >= 3 && c == 1) {
                 // human eye is most sensitive to green
                 strength /= 2;
             }
@@ -146,7 +169,7 @@ uint_fast8_t optimize_state_run(
     state->x++;
 
     color_delta difference;
-    color_difference(back_color, here_color, difference);
+    color_difference(image->bytes_per_pixel, difference, back_color, here_color);
     diffuse_color_error(state, image, difference);
 
     return symbol_cost;
@@ -203,12 +226,12 @@ unsigned char filter_predict(
     pngloss_image *image, uint32_t x, uint32_t y,
     pngloss_filter filter, uint_fast8_t c, unsigned char left
 ) {
-    uint32_t offset = x*bytes_per_pixel + c;
+    uint32_t offset = x*image->bytes_per_pixel + c;
     unsigned char above = 0, diag = 0;
     if (y > 0) {
         above = image->rows[y-1][offset];
         if (x > 0) {
-            diag = image->rows[y-1][offset-bytes_per_pixel];
+            diag = image->rows[y-1][offset-image->bytes_per_pixel];
         }
     }
 
@@ -231,7 +254,8 @@ void diffuse_color_error(
 ) {
     uint32_t error_width = image->width + dither_filter_width - 1;
 
-    for (uint_fast8_t c = 0; c < bytes_per_pixel; c++) {
+    // hardcoded 4 instead of bytes_per_pixel because indexing color delta and not pixels
+    for (uint_fast8_t c = 0; c < 4; c++) {
         int_fast16_t d = difference[c];
 
         // reduce color bleed - only propagate half of error
@@ -332,12 +356,12 @@ uint_fast8_t adaptive_filter_for_rows(
     uint32_t none_sum = 0, sub_sum = 0, up_sum = 0;
     uint32_t average_sum = 0, paeth_sum = 0;
 
-    for (uint32_t i = 0; i < image->width * bytes_per_pixel; i++) {
+    for (uint32_t i = 0; i < image->width * image->bytes_per_pixel; i++) {
         unsigned char above = 0, left = 0, diag = 0;
-        if (i >= bytes_per_pixel) {
-            left = pixels[i-bytes_per_pixel];
+        if (i >= image->bytes_per_pixel) {
+            left = pixels[i-image->bytes_per_pixel];
             if (above_row) {
-                diag = above_row[i-bytes_per_pixel];
+                diag = above_row[i-image->bytes_per_pixel];
             }
         }
         if (above_row) {
