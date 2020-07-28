@@ -25,15 +25,15 @@ improve the lossy compression algorithm.
 ### Options
 
 `-s`, `--strength`
-How much quality to sacrifice, from 0 to 100 (default 20). Strength 0 is
+How much quality to sacrifice, from 0 to 255 (default 20). Strength 0 is
 lossless and does not modify the pixel data, although it may convert
 colorspace or strip PNG chunks.
 
 `-b`, `--bleed`
 Color bleed divider, from 1 to 32767 (default 2). A divider of 1
-propagates all of the error from quantization to neighboring pixels,
-which improves visual quality but also increases filesize. The default
-of 2 propagates half of the error, which is a good tradeoff.
+propagates all of the error from quantization to neighboring pixels, which
+improves visual quality but also increases filesize. The default of 2
+propagates half (1/2) of the error, which is usually a good tradeoff.
 
 `-v`, `--verbose`
 Verbose - print additional information about compression.

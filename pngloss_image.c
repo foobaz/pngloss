@@ -157,20 +157,40 @@ pngloss_error optimize_image(
     pngloss_image *image, bool verbose,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
-    optimize_state state, best, filter_state;
     pngloss_error retval;
     int spinner[spin_count] = {'-', '/', '|', '\\'};
-    //wint_t spinner[spin_count] = {u'\u253C', u'\u251C', u'\u2514', u'\u2534', u'\u253C', u'\u252C', u'\u250C', u'\u251C', u'\u253C', u'\u2524', u'\u2510', u'\u252C', u'\u253C', u'\u2534', u'\u2518', u'\u2524'};
-
     uint_fast8_t spin_index = 0;
 
+    optimize_state state = {
+        .pixels = NULL,
+        .color_error = NULL,
+        .symbol_frequency = NULL
+    };
     retval = optimize_state_init(&state, image);
+
+    optimize_state best = {
+        .pixels = NULL,
+        .color_error = NULL,
+        .symbol_frequency = NULL
+    };
     if (SUCCESS == retval) {
         retval = optimize_state_init(&best, image);
     }
+
+    optimize_state filter_state = {
+        .pixels = NULL,
+        .color_error = NULL,
+        .symbol_frequency = NULL
+    };
     if (SUCCESS == retval) {
         retval = optimize_state_init(&filter_state, image);
     }
+
+    unsigned char *last_row_pixels = NULL;
+    if (SUCCESS == retval) {
+        last_row_pixels = calloc((size_t)image->width, image->bytes_per_pixel);
+    }
+
     if (SUCCESS == retval) {
         struct timeval tp;
         time_t old_sec = 0;
@@ -216,6 +236,7 @@ pngloss_error optimize_image(
                         &filter_state,
                         image,
                         filter,
+                        last_row_pixels,
                         best_cost,
                         strength,
                         bleed_divider
@@ -248,6 +269,11 @@ pngloss_error optimize_image(
             }
             //fprintf(stderr, "row %u best cost %u filter %u strength %u\n", (unsigned int)current_y, (unsigned int)best_cost, (unsigned int)best_filter, (unsigned int)best_strength);
             memcpy(
+                last_row_pixels,
+                image->rows[current_y],
+                image->width * image->bytes_per_pixel
+            );
+            memcpy(
                 image->rows[current_y],
                 best.pixels,
                 image->width * image->bytes_per_pixel
@@ -262,6 +288,7 @@ pngloss_error optimize_image(
     optimize_state_destroy(&state);
     optimize_state_destroy(&best);
     optimize_state_destroy(&filter_state);
+    free(last_row_pixels);
 
     return retval;
 }

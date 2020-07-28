@@ -80,7 +80,8 @@ void optimize_state_copy(
 }
 
 uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image, pngloss_filter filter,
+    optimize_state *state, pngloss_image *image,
+    pngloss_filter filter, unsigned char *last_row_pixels,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     int_fast16_t back_color[4];
@@ -106,55 +107,83 @@ uint_fast8_t optimize_state_run(
         int_fast16_t filtered_value = here_color[c] - predicted;
 
         int_fast16_t original = back_color[c] - predicted;
-        unsigned char best_close_value;
+        unsigned char best_close_value = back_color[c] - predicted;
 
         // for quality, pass full black, white, transparent, and opaque through unchanged
         if (back_color[c] == 0) {
-            best_close_value = 0 - predicted;
+            // do nothing
         } else if (back_color[c] == 255 && here_color[c] >= 255) {
-            best_close_value = 255 - predicted;
+            // do nothing
         } else {
-            int_fast16_t strength = quantization_strength;
-            if (image->bytes_per_pixel >= 3 && c == 1) {
-                // human eye is most sensitive to green
-                strength /= 2;
+            // if current pixel is surrounded on all sides by the same
+            // color, leave it alone to preserve areas of flat color
+            unsigned char neighbors[4] = {
+                // old above, old left, right, below
+                back_color[c], back_color[c], back_color[c], back_color[c]
+            };
+            if (state->y > 0) {
+                neighbors[0] = last_row_pixels[offset];
             }
-            int_fast16_t min = (filtered_value * 2 - (int_fast16_t)strength) / 2;
-            // include original because it's known to be in 0-255
-            if (min > original) {
-                min = original;
+            if (state->x > 0) {
+                neighbors[1] = image->rows[state->y][offset - image->bytes_per_pixel];
             }
-            int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + 1) / 2;
-            if (max < original) {
-                max = original;
+            if (state->y + 1 < image->height) {
+                neighbors[2] = image->rows[state->y + 1][offset];
             }
-            //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
-            int_fast16_t lower_width = 1 + filtered_value - min;
-            int_fast16_t upper_width = 1 + max - filtered_value;
-            unsigned long best_frequency = 0;
-            unsigned long best_width = 1;
-            best_close_value = original;
-            for (int_fast16_t close_value = min; close_value <= max; close_value++) {
-                int_fast16_t back = close_value + predicted;
-                if (back >= 0 && back <= 255) {
-                    unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
-                    unsigned long width = 1;
-                    if (close_value < filtered_value) {
-                        frequency *= lower_width + close_value - filtered_value;
-                        width = lower_width;
-                    } else if (close_value > filtered_value) {
-                        frequency *= upper_width + filtered_value - close_value;
-                        width = upper_width;
-                    }
-                    if (best_frequency * width < frequency * best_width) {
-                        best_frequency = frequency;
-                        best_width = width;
-                        best_close_value = close_value;
-                        back_color[c] = back;
-                    }
+            if (state->x + 1 < image->width) {
+                neighbors[3] = image->rows[state->y][offset + image->bytes_per_pixel];
+            }
+
+            uint_fast8_t surrounding_same = 0;
+            for (uint_fast8_t i = 0; i < 4; i++) {
+                if (back_color[c] == neighbors[i]) {
+                    surrounding_same++;
                 }
             }
-            //fprintf(stderr, "%u orig %u here %d best %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)here_color[c], (int)back_color[c]); 
+
+            if (surrounding_same < 4) {
+                int_fast16_t strength = quantization_strength;
+                if (image->bytes_per_pixel >= 3 && c == 1) {
+                    // human eye is most sensitive to green
+                    strength /= 2;
+                }
+                int_fast16_t min = (filtered_value * 2 - (int_fast16_t)strength) / 2;
+                // include original because it's known to be in 0-255
+                if (min > original) {
+                    min = original;
+                }
+                int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + 1) / 2;
+                if (max < original) {
+                    max = original;
+                }
+                //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
+                int_fast16_t lower_width = 1 + filtered_value - min;
+                int_fast16_t upper_width = 1 + max - filtered_value;
+                unsigned long best_frequency = 0;
+                unsigned long best_width = 1;
+                best_close_value = original;
+                for (int_fast16_t close_value = min; close_value <= max; close_value++) {
+                    int_fast16_t back = close_value + predicted;
+                    if (back >= 0 && back <= 255) {
+                        unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
+                        unsigned long width = 1;
+                        if (close_value < filtered_value) {
+                            frequency *= lower_width + close_value - filtered_value;
+                            width = lower_width;
+                        } else if (close_value > filtered_value) {
+                            frequency *= upper_width + filtered_value - close_value;
+                            width = upper_width;
+                        }
+                        if (best_frequency * width < frequency * best_width) {
+                            best_frequency = frequency;
+                            best_width = width;
+                            best_close_value = close_value;
+                            back_color[c] = back;
+                        }
+                    }
+                }
+                //fprintf(stderr, "%u orig %u here %d best %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)here_color[c], (int)back_color[c]); 
+            }
         }
 
         state->pixels[offset] = back_color[c];
@@ -177,7 +206,7 @@ uint_fast8_t optimize_state_run(
 
 uint32_t optimize_state_row(
     optimize_state *state, pngloss_image *image,
-    pngloss_filter filter, uint32_t best_cost,
+    pngloss_filter filter, unsigned char *last_row_pixels, uint32_t best_cost,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     uint32_t total_cost = 0;
@@ -186,6 +215,7 @@ uint32_t optimize_state_row(
             state,
             image,
             filter,
+            last_row_pixels,
             quantization_strength,
             bleed_divider
         );
