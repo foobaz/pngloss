@@ -13,7 +13,7 @@ MANPREFIX ?= $(DESTDIR)$(PREFIX)/share/man
 
 OBJS = color_delta.o optimize_state.o pngloss_image.o pngloss_opts.o pngloss.o rwpng.o
 
-DISTFILES = Makefile README.md COPYRIGHT
+DISTFILES = pngloss.1 Makefile README.md COPYRIGHT
 TARNAME = pngloss-$(VERSION)
 TARFILE = $(TARNAME)-src.tar.gz
 
@@ -37,9 +37,11 @@ install: $(BIN) $(BIN).1
 	-mkdir -p '$(BINPREFIX)'
 	-mkdir -p '$(MANPREFIX)/man1'
 	install -m 0755 -p '$(BIN)' '$(BINPREFIX)/$(BIN)'
+	install -m 0644 -p '$(BIN).1' '$(MANPREFIX)/man1/'
 
 uninstall:
 	rm -f '$(BINPREFIX)/$(BIN)'
+	rm -f '$(MANPREFIX)/man1/$(BIN).1'
 
 clean:
 	rm -f '$(BIN)' $(OBJS) $(TARFILE)
