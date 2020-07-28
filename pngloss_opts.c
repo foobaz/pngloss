@@ -31,8 +31,7 @@ static const struct option long_options[] = {
     {"version", no_argument, NULL, 'V'},
     {"help", no_argument, NULL, 'h'},
     {"strength", required_argument, NULL, 's'},
-    {"fast", no_argument, NULL, '1'},
-    {"best", no_argument, NULL, '9'},
+    {"bleed", required_argument, NULL, 'b'},
     {NULL, 0, NULL, 0},
 };
 
@@ -42,8 +41,10 @@ pngloss_error pngloss_parse_options(int argc, char *argv[], struct pngloss_optio
     do {
         char *strength_end;
         unsigned long strength;
+        char *bleed_end;
+        unsigned long bleed_divider;
 
-        opt = getopt_long(argc, argv, "vqfo:Vhs:123456789", long_options, NULL);
+        opt = getopt_long(argc, argv, "vqfo:Vhs:b:", long_options, NULL);
         switch (opt) {
             case 'v':
                 options->verbose = true;
@@ -97,6 +98,16 @@ pngloss_error pngloss_parse_options(int argc, char *argv[], struct pngloss_optio
                     options->strength = strength;
                 } else {
                     fputs("-s, --strength requires a numeric argument\n", stderr);
+                    return INVALID_ARGUMENT;
+                }
+                break;
+
+            case 'b':
+                bleed_divider = strtoul(optarg, &bleed_end, 10);
+                if (bleed_end != optarg && '\0' == bleed_end[0]) {
+                    options->bleed_divider = bleed_divider;
+                } else {
+                    fputs("-b, --bleed requires a numeric argument\n", stderr);
                     return INVALID_ARGUMENT;
                 }
                 break;

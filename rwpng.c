@@ -635,8 +635,8 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
 
     struct rwpng_chunk *chunk = mainprog_ptr->chunks;
     mainprog_ptr->metadata_size = 0;
-    int chunk_num=0;
-    while(chunk) {
+    int chunk_num = 0;
+    while (chunk) {
         png_unknown_chunk pngchunk = {
             .size = chunk->size,
             .data = chunk->data,
@@ -666,6 +666,9 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
             if (pixel[3] < 255) {
                 strip_alpha = false;
             }
+        }
+        if (!grayscale && !strip_alpha) {
+            break;
         }
     }
 

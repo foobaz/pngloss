@@ -23,7 +23,7 @@
 
 const uint_fast8_t dither_row_count = 3;
 const uint_fast8_t dither_filter_width = 5;
-const uint_fast16_t symbol_count = 285;
+const uint_fast16_t symbol_count = 256;
 
 pngloss_error optimize_state_init(
     optimize_state *state, pngloss_image *image
@@ -42,7 +42,7 @@ pngloss_error optimize_state_init(
         return OUT_OF_MEMORY_ERROR;
     }
 
-    uint32_t error_width = image->width + dither_filter_width - 1;
+    uint32_t error_width = image->width + dither_filter_width;
     state->color_error = calloc((size_t)dither_row_count * error_width, sizeof(color_delta));
     if (!state->color_error) {
         return OUT_OF_MEMORY_ERROR;
@@ -72,7 +72,7 @@ void optimize_state_copy(
 
     memcpy(to->pixels, from->pixels, (size_t)image->width * image->bytes_per_pixel);
 
-    uint32_t error_width = image->width + dither_filter_width - 1;
+    uint32_t error_width = image->width + dither_filter_width;
     memcpy(to->color_error, from->color_error, (size_t)dither_row_count * error_width * sizeof(color_delta));
 
     memcpy(to->symbol_frequency, from->symbol_frequency, (size_t)symbol_count * sizeof(uint32_t));
@@ -80,8 +80,8 @@ void optimize_state_copy(
 }
 
 uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image,
-    uint_fast8_t quantization_strength, pngloss_filter filter
+    optimize_state *state, pngloss_image *image, pngloss_filter filter,
+    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     int_fast16_t back_color[4];
     int_fast16_t here_color[4];
@@ -166,27 +166,28 @@ uint_fast8_t optimize_state_run(
         symbol_cost += ulog2(state->symbol_count / state->symbol_frequency[best_close_value]);
     }
 
-    state->x++;
-
     color_delta difference;
     color_difference(image->bytes_per_pixel, difference, back_color, here_color);
-    diffuse_color_error(state, image, difference);
+    diffuse_color_error(state, image, difference, bleed_divider);
+
+    state->x++;
 
     return symbol_cost;
 }
 
 uint32_t optimize_state_row(
     optimize_state *state, pngloss_image *image,
-    uint_fast8_t quantization_strength, uint32_t best_cost,
-    pngloss_filter filter
+    pngloss_filter filter, uint32_t best_cost,
+    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     uint32_t total_cost = 0;
     while (state->x < image->width) {
         uint_fast8_t cost = optimize_state_run(
             state,
             image,
+            filter,
             quantization_strength,
-            filter
+            bleed_divider
         );
         total_cost += cost;
         //fprintf(stderr, "In %s, cost == %d, total_cost == %d\n", __func__, (int)cost, (int)total_cost);
@@ -212,7 +213,7 @@ uint32_t optimize_state_row(
     state->y++;
 
     // move color errors up one row
-    uint32_t error_width = image->width + dither_filter_width - 1;
+    uint32_t error_width = image->width + dither_filter_width;
     memmove(
         state->color_error,
         state->color_error + error_width,
@@ -250,16 +251,17 @@ unsigned char filter_predict(
 }
 
 void diffuse_color_error(
-    optimize_state *state, pngloss_image *image, color_delta difference
+    optimize_state *state, pngloss_image *image,
+    color_delta difference, int_fast16_t bleed_divider
 ) {
-    uint32_t error_width = image->width + dither_filter_width - 1;
+    uint32_t error_width = image->width + dither_filter_width;
 
     // hardcoded 4 instead of bytes_per_pixel because indexing color delta and not pixels
     for (uint_fast8_t c = 0; c < 4; c++) {
         int_fast16_t d = difference[c];
 
-        // reduce color bleed - only propagate half of error
-        d = d / 2;
+        // reduce color bleed
+        d = d / bleed_divider;
 
         /*
         // floyd-steinberg dithering

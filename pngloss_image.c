@@ -29,25 +29,27 @@ void optimizeForAverageFilter(
 ) {
     const uint_fast8_t bytes_per_pixel = 4;
     uint32_t stride = width * bytes_per_pixel;
+    // propagating half the color error is good middle ground
+    const int_fast16_t bleed_divider = 2;
 
-    optimize_with_stride(pixels, width, height, stride, quantization_strength, false);
+    optimize_with_stride(pixels, width, height, stride, false, quantization_strength, bleed_divider);
 }
 
 void optimize_with_stride(
-    unsigned char *pixels, uint32_t width, uint32_t height,
-    uint32_t stride, uint_fast8_t quantization_strength, bool verbose
+    unsigned char *pixels, uint32_t width, uint32_t height, uint32_t stride,
+    bool verbose, uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     unsigned char **rows = malloc((size_t)height * sizeof(unsigned char *));
     for (uint32_t i = 0; i < height; i++) {
         rows[i] = pixels + i*stride;
     }
-    optimize_with_rows(rows, width, height, quantization_strength, verbose);
+    optimize_with_rows(rows, width, height, verbose, quantization_strength, bleed_divider);
     free(rows);
 }
 
 pngloss_error optimize_with_rows(
-    unsigned char **rows, uint32_t width, uint32_t height,
-    uint_fast8_t quantization_strength, bool verbose
+    unsigned char **rows, uint32_t width, uint32_t height, bool verbose,
+    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     pngloss_error retval = SUCCESS;
     pngloss_image original_image = {
@@ -62,13 +64,10 @@ pngloss_error optimize_with_rows(
     for (uint32_t y = 0; y < height; y++) {
         for (uint32_t x = 0; x < width; x++) {
             unsigned char *pixel = rows[y] + x*4;
-            if (
-                (unsigned long)abs((int)pixel[1] - (int)pixel[0]) > quantization_strength ||
-                (unsigned long)abs((int)pixel[1] - (int)pixel[2]) > quantization_strength
-            ) {
+            if (pixel[0] != pixel[1] || pixel[1] != pixel[2]) {
                 grayscale = false;
             }
-            if (pixel[3] == 0 || (unsigned long)pixel[3] + quantization_strength < 255) {
+            if (pixel[3] < 255) {
                 strip_alpha = false;
             }
         }
@@ -118,7 +117,7 @@ pngloss_error optimize_with_rows(
                     }
                 }
             }
-            retval = optimize_image(&image, quantization_strength, verbose);
+            retval = optimize_image(&image, verbose, quantization_strength, bleed_divider);
         }
         if (SUCCESS == retval) {
             for (uint32_t y = 0; y < height; y++) {
@@ -147,7 +146,7 @@ pngloss_error optimize_with_rows(
         free(pixels);
         free(image.rows);
     } else {
-        retval = optimize_image(&original_image, quantization_strength, verbose);
+        retval = optimize_image(&original_image, verbose, quantization_strength, bleed_divider);
     }
 
     return retval;
@@ -155,8 +154,8 @@ pngloss_error optimize_with_rows(
 
 #define spin_count 4
 pngloss_error optimize_image(
-    pngloss_image *image,
-    uint_fast8_t quantization_strength, bool verbose
+    pngloss_image *image, bool verbose,
+    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     optimize_state state, best, filter_state;
     pngloss_error retval;
@@ -216,9 +215,10 @@ pngloss_error optimize_image(
                     uint32_t cost = optimize_state_row(
                         &filter_state,
                         image,
-                        strength,
+                        filter,
                         best_cost,
-                        filter
+                        strength,
+                        bleed_divider
                     );
                     /*
                     fprintf(stderr, "filter %d costs %u\n", (int)i, (unsigned int)cost);

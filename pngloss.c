@@ -37,6 +37,7 @@ usage:  pngloss [options] -- pngfile [pngfile ...]\n\
         pngloss [options] - >stdout <stdin\n\n\
 options:\n\
   -s, --strength 20 how much quality to sacrifice, from 0 to 100 (default 20)\n\
+  -b, --bleed 2     bleed divider, from 1 (full dithering) to 32767 (none)\n\
   -f, --force       overwrite existing output files\n\
   -o, --output file destination file path to use instead of --ext\n\
   -v, --verbose     print status messages\n\
@@ -60,7 +61,7 @@ char *PNGLOSS_VERSION = "0.5";
 
 static pngloss_error prepare_output_image(png24_image *input_image, rwpng_color_transform tag, png24_image *output_image);
 static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose);
-static pngloss_error write_image(png8_image *output_image, png24_image *output_image24, const char *outname, struct pngloss_options *options);
+static pngloss_error write_image(png24_image *output_image24, const char *outname, struct pngloss_options *options);
 static char *add_filename_extension(const char *filename, const char *newext);
 static bool file_exists(const char *outname);
 
@@ -107,6 +108,7 @@ int main(int argc, char *argv[])
 {
     struct pngloss_options options = {
         .strength = 20,
+        .bleed_divider = 2
     };
 
     pngloss_error retval = pngloss_parse_options(argc, argv, &options);
@@ -133,6 +135,11 @@ int main(int argc, char *argv[])
 
     if (options.strength > 255) {
         fputs("Must specify a strength in the range 0-255.\n", stderr);
+        return INVALID_ARGUMENT;
+    }
+
+    if (options.bleed_divider < 1 || options.bleed_divider > 32767) {
+        fputs("Must specify a bleed divider in the range 1-32767.\n", stderr);
         return INVALID_ARGUMENT;
     }
 
@@ -183,8 +190,8 @@ pngloss_error pngloss_main_internal(struct pngloss_options *options)
     }
 #endif
 
-    unsigned int error_count=0, skipped_count=0, file_count=0;
-    pngloss_error latest_error=SUCCESS;
+    unsigned int error_count = 0, skipped_count = 0, file_count = 0;
+    pngloss_error latest_error = SUCCESS;
 
     #pragma omp parallel for \
         schedule(static, 1) reduction(+:skipped_count) reduction(+:error_count) reduction(+:file_count) shared(latest_error)
@@ -294,14 +301,14 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
     }
 
     if (SUCCESS == retval) {
-        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, options->strength, options->verbose);
+        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, options->verbose, options->strength, options->bleed_divider);
 
         if (options->skip_if_larger) {
             output_image.maximum_file_size = input_image.file_size - 1;
         }
 
         output_image.chunks = input_image.chunks; input_image.chunks = NULL;
-        retval = write_image(NULL, &output_image, outname, options);
+        retval = write_image(&output_image, outname, options);
 
         if (options->verbose) {
             if (TOO_LARGE_FILE == retval) {
@@ -316,7 +323,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
     if (options->using_stdout && (TOO_LARGE_FILE == retval || TOO_LOW_QUALITY == retval)) {
         // when outputting to stdout it'd be nasty to create 0-byte file
         // so if quality is too low, output 24-bit original
-        pngloss_error write_retval = write_image(NULL, &input_image, outname, options);
+        pngloss_error write_retval = write_image(&input_image, outname, options);
         if (write_retval) {
             retval = write_retval;
         }
@@ -401,7 +408,7 @@ static bool replace_file(const char *from, const char *to, const bool force) {
     return (0 == rename(from, to));
 }
 
-static pngloss_error write_image(png8_image *output_image, png24_image *output_image24, const char *outname, struct pngloss_options *options)
+static pngloss_error write_image(png24_image *output_image24, const char *outname, struct pngloss_options *options)
 {
     FILE *outfile;
     char *tempname = NULL;
@@ -411,11 +418,7 @@ static pngloss_error write_image(png8_image *output_image, png24_image *output_i
         outfile = stdout;
 
         if (options->verbose) {
-            if (output_image) {
-                fprintf(stderr, "  writing %d-color image to stdout\n", output_image->num_palette);
-            } else {
-                fprintf(stderr, "  writing truecolor image to stdout\n");
-            }
+            fprintf(stderr, "  writing compressed image to stdout\n");
         }
     } else {
         tempname = temp_filename(outname);
@@ -428,22 +431,14 @@ static pngloss_error write_image(png8_image *output_image, png24_image *output_i
         }
 
         if (options->verbose) {
-            if (output_image) {
-                fprintf(stderr, "  writing %d-color image as %s\n", output_image->num_palette, filename_part(outname));
-            } else {
-                fprintf(stderr, "  writing truecolor image as %s\n", filename_part(outname));
-            }
+            fprintf(stderr, "  writing compressed image as %s\n", filename_part(outname));
         }
     }
 
     pngloss_error retval;
     #pragma omp critical (libpng)
     {
-        if (output_image) {
-            retval = rwpng_write_image8(outfile, output_image);
-        } else {
-            retval = rwpng_write_image24(outfile, output_image24);
-        }
+        retval = rwpng_write_image24(outfile, output_image24);
     }
 
     if (!options->using_stdout) {

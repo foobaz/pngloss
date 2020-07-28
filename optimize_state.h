@@ -34,20 +34,21 @@ void optimize_state_copy(
     pngloss_image *image
 );
 uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image,
-    uint_fast8_t quantization, pngloss_filter filter
+    optimize_state *state, pngloss_image *image, pngloss_filter filter,
+    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 );
 uint32_t optimize_state_row(
     optimize_state *state, pngloss_image *image,
-    uint_fast8_t quantization_strength, uint32_t best_cost,
-    pngloss_filter filter
+    pngloss_filter filter, uint32_t best_cost,
+    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 );
 unsigned char filter_predict(
     pngloss_image *image, uint32_t x, uint32_t y,
     pngloss_filter filter, uint_fast8_t c, unsigned char left
 );
 void diffuse_color_error(
-    optimize_state *state, pngloss_image *image, color_delta difference
+    optimize_state *state, pngloss_image *image,
+    color_delta difference, int_fast16_t bleed_divider
 );
 uint_fast8_t adaptive_filter_for_rows(
     pngloss_image *image, unsigned char *above_row, unsigned char *pixels
