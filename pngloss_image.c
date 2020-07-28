@@ -221,9 +221,9 @@ pngloss_error optimize_image(
                         bleed_divider
                     );
                     /*
-                    fprintf(stderr, "filter %d costs %u\n", (int)i, (unsigned int)cost);
+                    fprintf(stderr, "filter %u costs %u\n", (unsigned int)filter, (unsigned int)cost);
                     if (cost < (uint32_t)-1) {
-                        fprintf(stderr, "filter %u costs %u\n", (unsigned int)i, (unsigned int)cost);
+                        fprintf(stderr, "filter %u costs %u\n", (unsigned int)filter, (unsigned int)cost);
                     }
                     */
 
@@ -238,7 +238,7 @@ pngloss_error optimize_image(
 
                 // If already at zero strength, can't try again, so fail.
                 // This should be impossible but check anyway.
-                if (!strength) {
+                if (!found_best && !strength) {
                     fprintf(stderr, "\naborting because no good row at y == %d\n", (int)current_y);
                     abort();
                 }
