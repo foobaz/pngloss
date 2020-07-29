@@ -107,7 +107,7 @@ uint_fast8_t optimize_state_run(
         int_fast16_t filtered_value = here_color[c] - predicted;
 
         int_fast16_t original = back_color[c] - predicted;
-        unsigned char best_close_value = back_color[c] - predicted;
+        unsigned char best_close_value = original;
 
         // for quality, pass full black, white, transparent, and opaque through unchanged
         if (back_color[c] == 0) {
@@ -152,7 +152,8 @@ uint_fast8_t optimize_state_run(
                 if (min > original) {
                     min = original;
                 }
-                int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + 1) / 2;
+                int_fast16_t sign = filtered_value >> 15;
+                int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + sign) / 2;
                 if (max < original) {
                     max = original;
                 }
