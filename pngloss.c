@@ -311,11 +311,16 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
         retval = write_image(&output_image, outname, options);
 
         if (options->verbose) {
-            if (TOO_LARGE_FILE == retval) {
-                fprintf(stderr, "  file exceeded expected size of %luKB\n", ((unsigned long)output_image.maximum_file_size+500)/1000UL);
-            }
-            if (SUCCESS == retval && output_image.metadata_size > 0) {
-                fprintf(stderr, "  copied %dKB of additional PNG metadata\n", (int)(output_image.metadata_size+500)/1000);
+            if (SUCCESS == retval) {
+                unsigned long kb = ((unsigned long)output_image.file_size + 500UL) / 1000UL;
+                float percent = 100.0f * (float)output_image.file_size / (float)input_image.file_size;
+                fprintf(stderr, "  wrote %luKB file (%.1f%% of original)\n", kb, percent);
+                if (output_image.metadata_size > 0) {
+                    fprintf(stderr, "  copied %dKB of additional PNG metadata\n", (int)(output_image.metadata_size+500)/1000);
+                }
+            } else if (TOO_LARGE_FILE == retval) {
+                unsigned long kb = ((unsigned long)output_image.maximum_file_size + 500UL) / 1000UL;
+                fprintf(stderr, "  file exceeded maximum size of %luKB\n", kb);
             }
         }
     }
@@ -436,6 +441,7 @@ static pngloss_error write_image(png24_image *output_image24, const char *outnam
     }
 
     pngloss_error retval;
+    size_t output_file_size;
     #pragma omp critical (libpng)
     {
         retval = rwpng_write_image24(outfile, output_image24);

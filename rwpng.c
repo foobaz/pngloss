@@ -182,7 +182,7 @@ static void rwpng_warning_silent_handler(png_structp png_ptr, png_const_charp ms
 #pragma unused(png_ptr, msg)
 }
 
-static pngloss_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr, int strip, int verbose)
+static pngloss_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr, bool strip, bool verbose)
 {
     png_structp  png_ptr = NULL;
     png_infop    info_ptr = NULL;
@@ -428,19 +428,7 @@ void rwpng_free_image24(png24_image *image)
     image->chunks = NULL;
 }
 
-void rwpng_free_image8(png8_image *image)
-{
-    free(image->indexed_data);
-    image->indexed_data = NULL;
-
-    free(image->row_pointers);
-    image->row_pointers = NULL;
-
-    rwpng_free_chunks(image->chunks);
-    image->chunks = NULL;
-}
-
-pngloss_error rwpng_read_image24(FILE *infile, png24_image *out, int strip, int verbose)
+pngloss_error rwpng_read_image24(FILE *infile, png24_image *out, bool strip, bool verbose)
 {
 #if USE_COCOA
     rwpng_rgba *pixel_data;
@@ -463,7 +451,7 @@ pngloss_error rwpng_read_image24(FILE *infile, png24_image *out, int strip, int 
 }
 
 
-static pngloss_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_structpp png_ptr_p, png_infopp info_ptr_p, bool fast_compression)
+static pngloss_error rwpng_write_image_init(png24_image *mainprog_ptr, png_structpp png_ptr_p, png_infopp info_ptr_p, bool fast_compression)
 {
     /* could also replace libpng warning-handler (final NULL), but no need: */
 
@@ -522,103 +510,11 @@ static void rwpng_set_gamma(png_infop info_ptr, png_structp png_ptr, double gamm
     }
 }
 
-pngloss_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
-{
-    png_structp png_ptr;
-    png_infop info_ptr;
-
-    if (mainprog_ptr->num_palette > 256) return INVALID_ARGUMENT;
-
-    pngloss_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, mainprog_ptr->fast_compression);
-    if (retval) return retval;
-
-    struct rwpng_write_state write_state;
-    write_state = (struct rwpng_write_state){
-        .outfile = outfile,
-        .maximum_file_size = mainprog_ptr->maximum_file_size,
-        .retval = SUCCESS,
-    };
-    png_set_write_fn(png_ptr, &write_state, user_write_data, user_flush_data);
-
-    // Palette images generally don't gain anything from filtering
-    png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_VALUE_NONE);
-
-    rwpng_set_gamma(info_ptr, png_ptr, mainprog_ptr->gamma, mainprog_ptr->output_color);
-
-    /* set the image parameters appropriately */
-    int sample_depth;
-#if PNG_LIBPNG_VER > 10400 /* old libpng corrupts files with low depth */
-    if (mainprog_ptr->num_palette <= 2)
-        sample_depth = 1;
-    else if (mainprog_ptr->num_palette <= 4)
-        sample_depth = 2;
-    else if (mainprog_ptr->num_palette <= 16)
-        sample_depth = 4;
-    else
-#endif
-        sample_depth = 8;
-
-    struct rwpng_chunk *chunk = mainprog_ptr->chunks;
-    mainprog_ptr->metadata_size = 0;
-    int chunk_num=0;
-    while(chunk) {
-        png_unknown_chunk pngchunk = {
-            .size = chunk->size,
-            .data = chunk->data,
-            .location = chunk->location,
-        };
-        memcpy(pngchunk.name, chunk->name, 5);
-        png_set_unknown_chunks(png_ptr, info_ptr, &pngchunk, 1);
-
-        #if defined(PNG_HAVE_IHDR) && PNG_LIBPNG_VER < 10600
-        png_set_unknown_chunk_location(png_ptr, info_ptr, chunk_num, pngchunk.location ? pngchunk.location : PNG_HAVE_IHDR);
-        #endif
-
-        mainprog_ptr->metadata_size += chunk->size + 12;
-        chunk = chunk->next;
-        chunk_num++;
-    }
-
-    png_set_IHDR(png_ptr, info_ptr, mainprog_ptr->width, mainprog_ptr->height,
-      sample_depth, PNG_COLOR_TYPE_PALETTE,
-      0, PNG_COMPRESSION_TYPE_DEFAULT,
-      PNG_FILTER_TYPE_BASE);
-
-    png_color palette[256];
-    png_byte trans[256];
-    unsigned int num_trans = 0;
-    for(unsigned int i = 0; i < mainprog_ptr->num_palette; i++) {
-        palette[i] = (png_color){
-            .red   = mainprog_ptr->palette[i].r,
-            .green = mainprog_ptr->palette[i].g,
-            .blue  = mainprog_ptr->palette[i].b,
-        };
-        trans[i] = mainprog_ptr->palette[i].a;
-        if (mainprog_ptr->palette[i].a < 255) {
-            num_trans = i+1;
-        }
-    }
-
-    png_set_PLTE(png_ptr, info_ptr, palette, mainprog_ptr->num_palette);
-
-    if (num_trans > 0) {
-        png_set_tRNS(png_ptr, info_ptr, trans, num_trans, NULL);
-    }
-
-    rwpng_write_end(&info_ptr, &png_ptr, mainprog_ptr->row_pointers, false);
-
-    if (SUCCESS == write_state.retval && write_state.maximum_file_size && write_state.bytes_written > write_state.maximum_file_size) {
-        return TOO_LARGE_FILE;
-    }
-
-    return write_state.retval;
-}
-
 pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
     png_structp png_ptr;
     png_infop info_ptr;
 
-    pngloss_error retval = rwpng_write_image_init((rwpng_png_image*)mainprog_ptr, &png_ptr, &info_ptr, false);
+    pngloss_error retval = rwpng_write_image_init((png24_image *)mainprog_ptr, &png_ptr, &info_ptr, false);
     if (retval) return retval;
 
     png_init_io(png_ptr, outfile);
@@ -728,12 +624,17 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
     free(row_pointers);
     free(gray_data);
 
+    if (SUCCESS == write_state.retval && write_state.maximum_file_size && write_state.bytes_written > write_state.maximum_file_size) {
+        return TOO_LARGE_FILE;
+    }
+
+    mainprog_ptr->file_size = write_state.bytes_written;
     return SUCCESS;
 }
 
 static void rwpng_error_handler(png_structp png_ptr, png_const_charp msg)
 {
-    rwpng_png_image  *mainprog_ptr;
+    png24_image *mainprog_ptr;
 
     /* This function, aside from the extra step of retrieving the "error
      * pointer" (below) and the fact that it exists within the application
