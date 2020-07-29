@@ -167,13 +167,16 @@ uint_fast8_t optimize_state_run(
                     int_fast16_t back = close_value + predicted;
                     if (back >= 0 && back <= 255) {
                         unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
+                        // weight frequency using quadratic welch filter window
                         unsigned long width = 1;
                         if (close_value < filtered_value) {
-                            frequency *= lower_width + close_value - filtered_value;
-                            width = lower_width;
+                            unsigned long delta = lower_width + close_value - filtered_value;
+                            frequency *= delta * delta;
+                            width = lower_width * lower_width;
                         } else if (close_value > filtered_value) {
-                            frequency *= upper_width + filtered_value - close_value;
-                            width = upper_width;
+                            unsigned long delta = upper_width + filtered_value - close_value;
+                            frequency *= delta * delta;
+                            width = upper_width * upper_width;
                         }
                         if (best_frequency * width < frequency * best_width) {
                             best_frequency = frequency;

@@ -441,7 +441,6 @@ static pngloss_error write_image(png24_image *output_image24, const char *outnam
     }
 
     pngloss_error retval;
-    size_t output_file_size;
     #pragma omp critical (libpng)
     {
         retval = rwpng_write_image24(outfile, output_image24);
