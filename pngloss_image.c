@@ -15,6 +15,8 @@
  <http://www.gnu.org/copyleft/gpl.html>
 */
 
+#include <png.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,12 +45,13 @@ void optimize_with_stride(
     for (uint32_t i = 0; i < height; i++) {
         rows[i] = pixels + i*stride;
     }
-    optimize_with_rows(rows, width, height, verbose, quantization_strength, bleed_divider);
+    optimize_with_rows(rows, width, height, NULL, verbose, quantization_strength, bleed_divider);
     free(rows);
 }
 
 pngloss_error optimize_with_rows(
-    unsigned char **rows, uint32_t width, uint32_t height, bool verbose,
+    unsigned char **rows, uint32_t width, uint32_t height,
+    unsigned char *row_filters, bool verbose,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     pngloss_error retval = SUCCESS;
@@ -117,7 +120,7 @@ pngloss_error optimize_with_rows(
                     }
                 }
             }
-            retval = optimize_image(&image, verbose, quantization_strength, bleed_divider);
+            retval = optimize_image(&image, row_filters, verbose, quantization_strength, bleed_divider);
         }
         if (SUCCESS == retval) {
             for (uint32_t y = 0; y < height; y++) {
@@ -146,7 +149,7 @@ pngloss_error optimize_with_rows(
         free(pixels);
         free(image.rows);
     } else {
-        retval = optimize_image(&original_image, verbose, quantization_strength, bleed_divider);
+        retval = optimize_image(&original_image, row_filters, verbose, quantization_strength, bleed_divider);
     }
 
     return retval;
@@ -154,7 +157,7 @@ pngloss_error optimize_with_rows(
 
 #define spin_count 4
 pngloss_error optimize_image(
-    pngloss_image *image, bool verbose,
+    pngloss_image *image, unsigned char *row_filters, bool verbose,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     pngloss_error retval;
@@ -202,9 +205,12 @@ pngloss_error optimize_image(
             uint_fast8_t best_filter = 0;
             bool found_best = false;
             uint_fast8_t strength = quantization_strength;
+            // PNG spec section 5.9 says,
+            // "the first row must always be adaptively filtered"
+            bool adaptive = (!row_filters || !current_y);
             while (!found_best) {
             //for (uint_fast8_t strength = 0; strength <= quantization_strength; strength++)
-                for (pngloss_filter filter = 0; filter < pngloss_filter_count; filter++) {
+                for (pngloss_filter filter = 0; filter < pngloss_filter_count - 1; filter++) {
                     if (verbose) {
                         // print progress display
                         int err;
@@ -236,10 +242,9 @@ pngloss_error optimize_image(
                         &filter_state,
                         image,
                         filter,
-                        last_row_pixels,
-                        best_cost,
                         strength,
-                        bleed_divider
+                        bleed_divider,
+                        adaptive
                     );
                     /*
                     fprintf(stderr, "filter %u costs %u\n", (unsigned int)filter, (unsigned int)cost);
@@ -279,12 +284,45 @@ pngloss_error optimize_image(
                 image->width * image->bytes_per_pixel
             );
             optimize_state_copy(&state, &best, image);
+            if (row_filters) {
+                unsigned char best_png_filter;
+                switch (best_filter) {
+                case pngloss_none:
+                    best_png_filter = PNG_FILTER_NONE;
+                    break;
+                case pngloss_sub:
+                    best_png_filter = PNG_FILTER_SUB;
+                    break;
+                case pngloss_up:
+                    best_png_filter = PNG_FILTER_UP;
+                    break;
+                case pngloss_average:
+                    best_png_filter = PNG_FILTER_AVG;
+                    break;
+                case pngloss_paeth:
+                    best_png_filter = PNG_FILTER_PAETH;
+                    break;
+                }
+                row_filters[current_y] = best_png_filter;
+            }
         }
         // done with progress display, advance to next line for subsequent messages
         if (verbose) {
             fputs("\x1B[\x01G  compression complete\n", stderr);
         }
     }
+    if (verbose) {
+        unsigned int used_symbols = 0;
+        for (uint_fast16_t i = 0; i < 256; i++) {
+            uint32_t frequency = best.symbol_frequency[i];
+            if (frequency) {
+                //fprintf(stderr, "  %3u %u\n", (unsigned int)i, (unsigned int)frequency);
+                used_symbols++;
+            }
+        }
+        fprintf(stderr, "  used %u unique symbols\n", used_symbols++);
+    }
+
     optimize_state_destroy(&state);
     optimize_state_destroy(&best);
     optimize_state_destroy(&filter_state);

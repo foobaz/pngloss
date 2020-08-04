@@ -36,7 +36,7 @@ char *PNGLOSS_USAGE = "\
 usage:  pngloss [options] -- pngfile [pngfile ...]\n\
         pngloss [options] - >stdout <stdin\n\n\
 options:\n\
-  -s, --strength 20 how much quality to sacrifice, from 0 to 100 (default 20)\n\
+  -s, --strength 26 how much quality to sacrifice, from 0 to 100 (default 26)\n\
   -b, --bleed 2     bleed divider, from 1 (full dithering) to 32767 (none)\n\
   -f, --force       overwrite existing output files\n\
   -o, --output file destination file path to use instead of --ext\n\
@@ -57,11 +57,11 @@ compressed image will go to stdout).  If you pass the special output path\n\
 compressed image will go to stdout. The default behavior if the output\n\
 file exists is to skip the conversion; use --force to overwrite.\n";
 
-char *PNGLOSS_VERSION = "0.5";
+char *PNGLOSS_VERSION = "0.6";
 
 static pngloss_error prepare_output_image(png24_image *input_image, rwpng_color_transform tag, png24_image *output_image);
 static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose);
-static pngloss_error write_image(png24_image *output_image24, const char *outname, struct pngloss_options *options);
+static pngloss_error write_image(png24_image *output_image24, unsigned char *row_filters, const char *outname, struct pngloss_options *options);
 static char *add_filename_extension(const char *filename, const char *newext);
 static bool file_exists(const char *outname);
 
@@ -107,7 +107,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
 int main(int argc, char *argv[])
 {
     struct pngloss_options options = {
-        .strength = 20,
+        .strength = 26,
         .bleed_divider = 2
     };
 
@@ -300,15 +300,18 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
         retval = prepare_output_image(&input_image, input_image.output_color, &output_image);
     }
 
+    // not necessary to check return value because NULL row_filters is valid
+    unsigned char *row_filters = malloc(input_image.height);
+
     if (SUCCESS == retval) {
-        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, options->verbose, options->strength, options->bleed_divider);
+        optimize_with_rows(output_image.row_pointers, output_image.width, output_image.height, row_filters, options->verbose, options->strength, options->bleed_divider);
 
         if (options->skip_if_larger) {
             output_image.maximum_file_size = input_image.file_size - 1;
         }
 
         output_image.chunks = input_image.chunks; input_image.chunks = NULL;
-        retval = write_image(&output_image, outname, options);
+        retval = write_image(&output_image, row_filters, outname, options);
 
         if (options->verbose) {
             if (SUCCESS == retval) {
@@ -328,7 +331,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
     if (options->using_stdout && (TOO_LARGE_FILE == retval || TOO_LOW_QUALITY == retval)) {
         // when outputting to stdout it'd be nasty to create 0-byte file
         // so if quality is too low, output 24-bit original
-        pngloss_error write_retval = write_image(&input_image, outname, options);
+        pngloss_error write_retval = write_image(&input_image, NULL, outname, options);
         if (write_retval) {
             retval = write_retval;
         }
@@ -336,6 +339,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
 
     rwpng_free_image24(&input_image);
     rwpng_free_image24(&output_image);
+    free(row_filters);
 
     return retval;
 }
@@ -413,7 +417,7 @@ static bool replace_file(const char *from, const char *to, const bool force) {
     return (0 == rename(from, to));
 }
 
-static pngloss_error write_image(png24_image *output_image24, const char *outname, struct pngloss_options *options)
+static pngloss_error write_image(png24_image *output_image24, unsigned char *row_filters, const char *outname, struct pngloss_options *options)
 {
     FILE *outfile;
     char *tempname = NULL;
@@ -443,7 +447,7 @@ static pngloss_error write_image(png24_image *output_image24, const char *outnam
     pngloss_error retval;
     #pragma omp critical (libpng)
     {
-        retval = rwpng_write_image24(outfile, output_image24);
+        retval = rwpng_write_image24(outfile, output_image24, row_filters);
     }
 
     if (!options->using_stdout) {

@@ -1,0 +1,110 @@
+.Dd 2013-02-25
+.Dt pngloss 1
+.Sh NAME
+.Nm pngloss
+.Nd Lossy compression of PNG images
+.Sh SYNOPSIS
+.Nm
+.Aq options
+.Pa file
+.Op Ar
+.Nm
+.Aq options
+.Op ncolors
+.Fl
+.Cm < Ns Pa file
+.Cm > Ns Pa file
+.Sh DESCRIPTION
+.Nm
+reduces the file size of PNGs by changing color values to make the pixel data more compressible.
+This lossy compression makes intelligent use of PNG byte filters and zlib features.
+The output filename is the same as the input name except that it ends in
+.Ql -loss.png
+(unless the input is stdin, in which case the quantized image will go to stdout).
+The default behavior if the output file exists is to skip the conversion; use
+.Fl Fl force
+to overwrite.
+.Nm
+works best on true-color images with lots of colors, like photographs or renderings with realistic lighting.
+It performs poorly on images with few colors or images with areas of flat color, like charts or line art.
+.Sh OPTIONS
+.Bl -tag -width -indent
+.It Fl s Ar N , Fl Fl strength Ar N
+.Cm 0
+(lossless) to
+.Cm 255
+(extreme).
+The default is
+.Cm 26 .
+.It Fl b Ar N , Fl Fl bleed Ar N
+.Cm 1
+(full dithering) to
+.Cm 32767
+(no dithering).
+The default color bleed divider is
+.Cm 2 ,
+which propagates half (1/2) of the color error.
+There is little difference between higher values.
+Many images look better with
+.Cm 1
+but this increases file size and reduces the overall quality per byte.
+Higher bleed dividers reduce file size but cause serious visual degradation.
+.It Fl o Ar out.png , Fl Fl output Ar out.png
+Writes converted file to the given path. When this option is used only single input file is allowed.
+.It Fl Fl ext Ar new.png
+File extension (suffix) to use for output files instead of the default
+.Ql -loss.png .
+.It Fl f , Fl Fl force
+Overwrite existing output files.
+.Do
+.Fl Fl ext
+.Ar .png
+.Fl Fl force
+.Dc
+can be used to convert files in place (which is unsafe).
+.It Fl Fl skip-if-larger
+If conversion results in a file larger than the original, the image won't be saved and
+.Nm
+will exit with status code
+.Er 98 .
+.It Fl Fl strip
+Remove optional chunks (metadata) from PNG files.
+.It Fl v , Fl Fl verbose
+Enable verbose messages showing progress and information about input/output. Opposite is
+.Fl Fl quiet .
+Errors are output to
+.Pa stderr
+regardless of this option.
+.It Fl V , Fl Fl version
+Display version on
+.Pa stdout
+and exit.
+.It Fl h , Fl Fl help
+Display help and exit.
+.El
+.Sh EXAMPLE
+Compress an image, removing metadata and displaying progress:
+.Bd -ragged -offset indent
+.Nm
+.Cm -fv --strip image.png
+.Ed
+.Pp
+The compressed image will be saved as
+.Pa image-loss.png ,
+even if image-loss.png already exists.
+.Pp
+Compress image in-place, but only if it can be reduced without too much quality loss:
+.Bd -ragged -offset indent
+.Nm
+.Cm -f -s10 --ext .png --skip-if-larger image.png
+.Ed
+.Sh AUTHOR
+.Nm
+is developed by William MacKay
+.Aq Mt foobaz@gmail.com
+based on pngquant by Kornel Lesinski
+.Aq Mt kornel@pngquant.org
+based on code by Greg Roelofs
+.Aq Mt newt@pobox.com .
+.Pp
+.Lk https://github.com/foobaz/pngloss "pngloss homepage" .

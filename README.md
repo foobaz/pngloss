@@ -5,6 +5,11 @@ Lossily compress your PNG images with pngloss. The program reads the original
 PNG file, modifies the pixels to make them more compressible, and writes a new
 file with the extension -loss.png.
 
+The compression technique relies on making small adjustments to pixel colors.
+It works best on true-color images with a wide variety of colors, like
+photographs or computer generated graphics with realistic lighting. It does
+not do a good job on paletted images or images with large areas of flat color.
+
 ### Heritage
 
 The lossy compression in pngloss is based on an algorithm in Michael Vinther's
@@ -25,7 +30,7 @@ improve the lossy compression algorithm.
 ### Options
 
 `-s`, `--strength`
-How much quality to sacrifice, from 0 to 255 (default 20). Strength 0 is
+How much quality to sacrifice, from 0 to 255 (default 26). Strength 0 is
 lossless and does not modify the pixel data, although it may convert
 colorspace or strip PNG chunks.
 

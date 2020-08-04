@@ -1,11 +1,9 @@
 -include config.mk
 
 CC ?= /usr/bin/cc
-#CFLAGS = -g -Og -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
-#CFLAGS = -O3 -mcpu=power9 -mtune=power9 -Wall -Wextra -I/usr/local/include
 CFLAGS = -O3 -Wall -Wextra -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lpng
-VERSION = 0.5
+VERSION = 0.6
 
 BIN ?= pngloss
 BINPREFIX ?= $(DESTDIR)$(PREFIX)/bin

@@ -19,11 +19,12 @@ void optimize_with_stride(
     bool verbose, uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 );
 pngloss_error optimize_with_rows(
-    unsigned char **rows, uint32_t width, uint32_t height, bool verbose,
+    unsigned char **rows, uint32_t width, uint32_t height,
+    unsigned char *row_filters, bool verbose,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 );
 pngloss_error optimize_image(
-    pngloss_image *image, bool verbose,
+    pngloss_image *image, unsigned char *row_filters, bool verbose,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 );
 

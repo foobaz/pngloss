@@ -11,7 +11,8 @@ typedef struct {
     unsigned char *pixels;
     color_delta *color_error;
     uint32_t *symbol_frequency;
-    unsigned long symbol_count;
+    uintmax_t symbol_count;
+    uint32_t *original_frequency[5];
 } optimize_state;
 
 typedef enum {
@@ -33,15 +34,14 @@ void optimize_state_copy(
     optimize_state *from,
     pngloss_image *image
 );
-uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image,
-    pngloss_filter filter, unsigned char *last_row_pixels,
+void optimize_state_run(
+    optimize_state *state, pngloss_image *image, pngloss_filter filter,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 );
 uint32_t optimize_state_row(
-    optimize_state *state, pngloss_image *image,
-    pngloss_filter filter, unsigned char *last_row_pixels, uint32_t best_cost,
-    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
+    optimize_state *state, pngloss_image *image,pngloss_filter filter,
+    uint_fast8_t quantization_strength,
+    int_fast16_t bleed_divider, bool adaptive
 );
 unsigned char filter_predict(
     pngloss_image *image, uint32_t x, uint32_t y,
@@ -55,7 +55,7 @@ uint_fast8_t adaptive_filter_for_rows(
     pngloss_image *image, unsigned char *above_row, unsigned char *pixels
 );
 
-uint_fast8_t ulog2(unsigned long x);
+uint_fast8_t ulog2(uintmax_t x);
 
 unsigned char pngloss_filter_none(
     unsigned char above, unsigned char diag, unsigned char left

@@ -36,6 +36,9 @@ pngloss_error optimize_state_init(
     state->pixels = NULL;
     state->color_error = NULL;
     state->symbol_frequency = NULL;
+    for (uint_fast8_t filter = 0; filter < 5; filter++) {
+        state->original_frequency[filter] = NULL;
+    }
 
     state->pixels = calloc((size_t)image->width, image->bytes_per_pixel);
     if (!state->pixels) {
@@ -53,6 +56,32 @@ pngloss_error optimize_state_init(
         return OUT_OF_MEMORY_ERROR;
     }
 
+    for (uint_fast8_t i = 0; i < 5; i++) {
+        state->original_frequency[i] = calloc(symbol_count, sizeof(uint32_t));
+        if (!state->original_frequency[i]) {
+            return OUT_OF_MEMORY_ERROR;
+        }
+    }
+
+    for (uint_fast8_t filter = 0; filter < 5; filter++) {
+        for (uint32_t y = 0; y < image->height; y++) {
+            for (uint32_t x = 0; x < image->width; x++) {
+                for (uint32_t c = 0; c < image->bytes_per_pixel; c++) {
+                    uint32_t offset = x*image->bytes_per_pixel + c;
+                    unsigned char color = image->rows[y][offset];
+                    unsigned char left = 0;
+                    if (x > 0) {
+                        left = image->rows[y][offset-image->bytes_per_pixel];
+                    }
+                    unsigned char predicted = filter_predict(image, x, y, filter, c, left);
+                    unsigned char filtered = color - predicted;
+                    //fprintf(stderr, "color %d predicted %d filtered %d\n", (int)color, (int)predicted, (int)filtered);
+                    state->original_frequency[filter][filtered]++;
+                }
+            }
+        }
+    }
+
     return SUCCESS;
 }
 
@@ -60,6 +89,9 @@ void optimize_state_destroy(optimize_state *state) {
     free(state->pixels);
     free(state->color_error);
     free(state->symbol_frequency);
+    for (uint_fast8_t filter = 0; filter < 5; filter++) {
+        free(state->original_frequency[filter]);
+    }
 }
 
 void optimize_state_copy(
@@ -79,9 +111,8 @@ void optimize_state_copy(
     to->symbol_count = from->symbol_count;
 }
 
-uint_fast8_t optimize_state_run(
-    optimize_state *state, pngloss_image *image,
-    pngloss_filter filter, unsigned char *last_row_pixels,
+void optimize_state_run(
+    optimize_state *state, pngloss_image *image, pngloss_filter filter,
     uint_fast8_t quantization_strength, int_fast16_t bleed_divider
 ) {
     int_fast16_t back_color[4];
@@ -91,112 +122,121 @@ uint_fast8_t optimize_state_run(
         uint32_t offset = state->x*image->bytes_per_pixel + c;
         back_color[c] = image->rows[state->y][offset];
         uint_fast8_t i = c;
-        // convert from pixel index to color delta index
-        if (image->bytes_per_pixel == 2 && c == 1) {
-            // pixel alpha and color delta alpha are at different
-            // indexes when colorspace is gray+alpha
-            i = 3;
-        }
-        here_color[c] = back_color[c] + state->color_error[state->x+dither_filter_width/2][c];
-
         unsigned char left = 0;
         if (state->x > 0) {
             left = state->pixels[offset-image->bytes_per_pixel];
         }
-        unsigned char predicted = filter_predict(image, state->x, state->y, filter, c, left);
-        int_fast16_t filtered_value = here_color[c] - predicted;
+        int_fast16_t predicted = filter_predict(image, state->x, state->y, filter, c, left);
 
-        int_fast16_t original = back_color[c] - predicted;
-        unsigned char best_close_value = original;
-
-        // for quality, pass full black, white, transparent, and opaque through unchanged
-        if (back_color[c] == 0) {
-            // do nothing
-        } else if (back_color[c] == 255 && here_color[c] >= 255) {
-            // do nothing
+        unsigned char best_symbol;
+        if ((image->bytes_per_pixel % 2) == 0 && image->rows[state->y][state->x*image->bytes_per_pixel+image->bytes_per_pixel-1] == 0) {
+            if (c == image->bytes_per_pixel-1) {
+                // leave fully transparent pixels fully transparent, symbol
+                // is expensive but artifacts are unacceptable otherwise
+                here_color[c] = 0;
+                back_color[c] = 0;
+                best_symbol = 0 - predicted;
+            } else {
+                // color of fully transparent pixel doesn't matter and using
+                // zero symbol to get predicted color minimizes file size
+                here_color[c] = predicted;
+                back_color[c] = predicted;
+                best_symbol = 0;
+            }
         } else {
-            // if current pixel is surrounded on all sides by the same
-            // color, leave it alone to preserve areas of flat color
-            unsigned char neighbors[4] = {
-                // old above, old left, right, below
-                back_color[c], back_color[c], back_color[c], back_color[c]
-            };
-            if (state->y > 0) {
-                neighbors[0] = last_row_pixels[offset];
+            // convert from pixel index to color delta index
+            if (image->bytes_per_pixel == 2 && c == 1) {
+                // pixel alpha and color delta alpha are at different
+                // indexes when colorspace is gray+alpha
+                i = 3;
             }
-            if (state->x > 0) {
-                neighbors[1] = image->rows[state->y][offset - image->bytes_per_pixel];
+            int_fast16_t color_error = state->color_error[state->x+dither_filter_width/2][i];
+            here_color[c] = back_color[c] + color_error;
+
+            int_fast16_t original = back_color[c] - predicted;
+            if (original < -128) {
+                predicted -= 256;
+                original = back_color[c] - predicted;
+            } else if (original > 127) {
+                predicted += 256;
+                original = back_color[c] - predicted;
             }
-            if (state->y + 1 < image->height) {
-                neighbors[2] = image->rows[state->y + 1][offset];
+            int_fast16_t filtered = here_color[c] - predicted;
+
+            // Find assigned band of values for filtered.
+            int_fast16_t min, max;
+            if (filtered < 0) {
+                max = -(-filtered - (-filtered % (quantization_strength + 1)));
+                min = max - quantization_strength;
+            } else {
+                min = filtered - (filtered % (quantization_strength + 1));
+                max = min + quantization_strength;
             }
-            if (state->x + 1 < image->width) {
-                neighbors[3] = image->rows[state->y][offset + image->bytes_per_pixel];
+                
+            if (min + predicted < 0) {
+                min = 0 - predicted;
+            }
+            if (max + predicted > 255) {
+                max = 255 - predicted;
+            }
+            if (max < min) {
+                if (filtered + predicted > 255) {
+                    min = 255 - predicted;
+                    max = 255 - predicted;
+                }
+                if (filtered + predicted < 0) {
+                    min = 0 - predicted;
+                    max = 0 - predicted;
+                }
             }
 
-            uint_fast8_t surrounding_same = 0;
-            for (uint_fast8_t i = 0; i < 4; i++) {
-                if (back_color[c] == neighbors[i]) {
-                    surrounding_same++;
+            bool found_best = false;
+            uint32_t best_frequency = 0;
+            for (int_fast16_t symbol = min; symbol <= max; symbol++) {
+                int_fast16_t back = symbol + predicted;
+                if (back < 0 || back > 255) {
+                    fprintf(stderr, "back %d min %d max %d\n", (int)back, (int)min, (int)max);
+                    abort();
                 }
-            }
+                bool new_best = false;
+                uint32_t frequency = state->symbol_frequency[(unsigned char)symbol];
 
-            if (surrounding_same < 4) {
-                int_fast16_t strength = quantization_strength;
-                if (image->bytes_per_pixel >= 3 && c == 1) {
-                    // human eye is most sensitive to green
-                    strength /= 2;
-                }
-                int_fast16_t min = (filtered_value * 2 - (int_fast16_t)strength) / 2;
-                // include original because it's known to be in 0-255
-                if (min > original) {
-                    min = original;
-                }
-                int_fast16_t sign = filtered_value >> 15;
-                int_fast16_t max = (filtered_value * 2 + (int_fast16_t)strength + sign) / 2;
-                if (max < original) {
-                    max = original;
-                }
-                //fprintf(stderr, "%u starting %d min %d max %d\n", (unsigned int)c, (int)original, (int)min, (int)max); 
-                int_fast16_t lower_width = 1 + filtered_value - min;
-                int_fast16_t upper_width = 1 + max - filtered_value;
-                unsigned long best_frequency = 0;
-                unsigned long best_width = 1;
-                best_close_value = original;
-                for (int_fast16_t close_value = min; close_value <= max; close_value++) {
-                    int_fast16_t back = close_value + predicted;
-                    if (back >= 0 && back <= 255) {
-                        unsigned long frequency = state->symbol_frequency[(unsigned char)close_value];
-                        // weight frequency using quadratic welch filter window
-                        unsigned long width = 1;
-                        if (close_value < filtered_value) {
-                            unsigned long delta = lower_width + close_value - filtered_value;
-                            frequency *= delta * delta;
-                            width = lower_width * lower_width;
-                        } else if (close_value > filtered_value) {
-                            unsigned long delta = upper_width + filtered_value - close_value;
-                            frequency *= delta * delta;
-                            width = upper_width * upper_width;
-                        }
-                        if (best_frequency * width < frequency * best_width) {
-                            best_frequency = frequency;
-                            best_width = width;
-                            best_close_value = close_value;
-                            back_color[c] = back;
+                if (!found_best) {
+                    new_best = true;
+                } else if (best_frequency < frequency) {
+                    new_best = true;
+                } else if (best_frequency == frequency) {
+                    uint32_t best_close_freq = state->original_frequency[filter][best_symbol];
+                    uint32_t close_freq = state->original_frequency[filter][(unsigned char)symbol];
+                    if (best_close_freq < close_freq) {
+                        new_best = true;
+                    } else if (best_close_freq == close_freq) {
+                        if (symbol == original) {
+                            new_best = true;
                         }
                     }
                 }
-                //fprintf(stderr, "%u orig %u here %d best %d\n", (unsigned int)c, (unsigned int)image->rows[state->y][offset], (int)here_color[c], (int)back_color[c]); 
+                if (new_best) {
+                    found_best = true;
+                    best_frequency = frequency;
+                    best_symbol = symbol;
+                    back_color[c] = back;
+                }
+            }
+            if (!found_best) {
+                fprintf(stderr, "color %d min %d max %d\n", (int)back_color[c], (int)min, (int)max);
+                abort();
             }
         }
 
         state->pixels[offset] = back_color[c];
 
-        state->symbol_frequency[best_close_value]++;
-        //fprintf(stderr, "%u best %u has frequency %u\n", (unsigned int)c, (unsigned int)best_close_value, (unsigned int)state->symbol_frequency[best_close_value]);
+        uint32_t old_frequency = state->symbol_frequency[best_symbol];
+        state->symbol_frequency[best_symbol]++;
+        uint32_t frequency = state->symbol_frequency[best_symbol];
         state->symbol_count++;
-        //fprintf(stderr, "val %u, count %u, freq %u\n", (unsigned int)back_value, (unsigned int)state->symbol_count, (unsigned int)state->symbol_frequency[back_value]);
-        symbol_cost += ulog2(state->symbol_count / state->symbol_frequency[best_close_value]);
+        //uint_fast8_t cost = ulog2(state->symbol_count / frequency);
+        //symbol_cost += cost;
     }
 
     color_delta difference;
@@ -205,46 +245,53 @@ uint_fast8_t optimize_state_run(
 
     state->x++;
 
-    return symbol_cost;
+    //return symbol_cost;
 }
 
 uint32_t optimize_state_row(
-    optimize_state *state, pngloss_image *image,
-    pngloss_filter filter, unsigned char *last_row_pixels, uint32_t best_cost,
-    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
+    optimize_state *state, pngloss_image *image, pngloss_filter filter,
+    uint_fast8_t quantization_strength,
+    int_fast16_t bleed_divider, bool adaptive
 ) {
-    uint32_t total_cost = 0;
     while (state->x < image->width) {
-        uint_fast8_t cost = optimize_state_run(
+        optimize_state_run(
             state,
             image,
             filter,
-            last_row_pixels,
             quantization_strength,
             bleed_divider
         );
-        total_cost += cost;
-        //fprintf(stderr, "In %s, cost == %d, total_cost == %d\n", __func__, (int)cost, (int)total_cost);
-        if (best_cost <= total_cost) {
-            //fprintf(stderr, "returning early, best_cost == %u, total_cost == %u\n", (unsigned int)best_cost, (unsigned int)total_cost);
-            //return -1;
-        }
     }
 
     unsigned char *above_row = NULL;
     if (state->y > 0) {
         above_row = image->rows[state->y - 1];
     }
-    uint_fast8_t adaptive_filter = adaptive_filter_for_rows(image, above_row, state->pixels);
-    //fprintf(stderr, "finished row %u, cost == %u, filter == 0x%X\n", (unsigned int)state->y, (unsigned int)total_cost, (unsigned int)adaptive_filter);
 
-    if (filter != adaptive_filter) {
-        return -1;
+    if (adaptive) {
+        uint_fast8_t adaptive_filter = adaptive_filter_for_rows(image, above_row, state->pixels);
+        if (filter != adaptive_filter) {
+            return -1;
+        }
     }
 
-    // advance to next row and indicate success and cost to caller
-    state->x = 0;
-    state->y++;
+    uint32_t total_cost = 0;
+    for (uint32_t x = 0; x < image->width; x++) {
+        for (uint_fast8_t c = 0; c < image->bytes_per_pixel; c++) {
+            uint32_t offset = x * image->bytes_per_pixel + c;
+            unsigned char left = 0;
+            if (x > 0) {
+                left = state->pixels[offset - image->bytes_per_pixel];
+            }
+            unsigned char predicted = filter_predict(image, x, state->y, filter, c, left);
+            unsigned char symbol = state->pixels[offset] - predicted;
+            uint32_t frequency = state->symbol_frequency[symbol];
+            if (frequency) {
+                uint_fast8_t cost = ulog2(UINTMAX_MAX / frequency);
+                total_cost += cost;
+            }
+        }
+    }
 
     // move color errors up one row
     uint32_t error_width = image->width + dither_filter_width;
@@ -254,6 +301,11 @@ uint32_t optimize_state_row(
         (dither_row_count - 1) * error_width * sizeof(color_delta)
     );
     memset(state->color_error + (dither_row_count - 1) * error_width, 0, error_width * sizeof(color_delta));
+
+    // advance to next row and indicate success and cost to caller
+    state->x = 0;
+    state->y++;
+
     return total_cost;
 }
 
@@ -350,7 +402,7 @@ void diffuse_color_error(
         int_fast16_t threes = d / 8;
         d -= threes * 2;
         state->color_error[error_width * 0 + state->x + 4][c] += threes;
-        state->color_error[error_width * 3 + state->x + 2][c] += threes;
+        state->color_error[error_width * 2 + state->x + 2][c] += threes;
 
         int_fast16_t fours = d * 2/9;
         d -= fours * 2;
@@ -459,7 +511,7 @@ uint_fast8_t adaptive_filter_for_rows(
 }
 
 // calculates floor(log2(x))
-uint_fast8_t ulog2(unsigned long x) {
+uint_fast8_t ulog2(uintmax_t x) {
     uint_fast8_t result = 0;
     while (x) {
         x >>= 1;

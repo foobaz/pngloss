@@ -12,12 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <png.h>  // if this include fails, you need to install libpng (e.g. libpng-devel package)
 
-#include "png.h"  /* if this include fails, you need to install libpng (e.g. libpng-devel package) and run ./configure */
-#include "rwpng.h"
 #if USE_LCMS
 #include "lcms2.h"
 #endif
+#include "rwpng.h"
 
 #ifndef Z_BEST_COMPRESSION
 #define Z_BEST_COMPRESSION 9
@@ -478,14 +478,15 @@ static pngloss_error rwpng_write_image_init(png24_image *mainprog_ptr, png_struc
     }
 
     png_set_compression_level(*png_ptr_p, fast_compression ? Z_BEST_SPEED : Z_BEST_COMPRESSION);
-    png_set_compression_mem_level(*png_ptr_p, fast_compression ? 9 : 5); // judging by optipng results, smaller mem makes libpng compress slightly better
+    png_set_compression_mem_level(*png_ptr_p, 9);
 
     return SUCCESS;
 }
 
-
-static void rwpng_write_end(png_infopp info_ptr_p, png_structpp png_ptr_p, png_bytepp row_pointers, bool strip_alpha)
-{
+static void rwpng_write_end(
+    png_infopp info_ptr_p, png_structpp png_ptr_p, png_bytepp row_pointers,
+    unsigned char *row_filters, uint32_t height, bool strip_alpha
+) {
     png_write_info(*png_ptr_p, *info_ptr_p);
 
     if (strip_alpha) {
@@ -493,7 +494,17 @@ static void rwpng_write_end(png_infopp info_ptr_p, png_structpp png_ptr_p, png_b
     }
     png_set_packing(*png_ptr_p);
 
-    png_write_image(*png_ptr_p, row_pointers);
+    png_set_filter(*png_ptr_p, PNG_FILTER_TYPE_BASE, PNG_ALL_FILTERS);
+    if (row_filters) {
+        png_write_row(*png_ptr_p, row_pointers[0]);
+        for (uint32_t y = 1; y < height; y++) {
+            //fprintf(stderr, "  row %u filter is 0x%X\n", (unsigned int)y, (unsigned int)row_filters[y]);
+            png_set_filter(*png_ptr_p, PNG_FILTER_TYPE_BASE, row_filters[y]);
+            png_write_row(*png_ptr_p, row_pointers[y]);
+        }
+    } else {
+        png_write_image(*png_ptr_p, row_pointers);
+    }
 
     png_write_end(*png_ptr_p, NULL);
 
@@ -510,7 +521,9 @@ static void rwpng_set_gamma(png_infop info_ptr, png_structp png_ptr, double gamm
     }
 }
 
-pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
+pngloss_error rwpng_write_image24(
+    FILE *outfile, png24_image *mainprog_ptr, unsigned char *row_filters
+) {
     png_structp png_ptr;
     png_infop info_ptr;
 
@@ -606,7 +619,7 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
     png_set_IHDR(png_ptr, info_ptr, mainprog_ptr->width, mainprog_ptr->height,
                  8, color_type,
                  0, PNG_COMPRESSION_TYPE_DEFAULT,
-                 PNG_FILTER_TYPE_BASE);
+                 PNG_FILTER_TYPE_DEFAULT);
 
     unsigned char *base;
     png_size_t rowbytes;
@@ -619,7 +632,7 @@ pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr) {
     }
     png_bytepp row_pointers = rwpng_create_row_pointers(info_ptr, png_ptr, base, mainprog_ptr->height, rowbytes);
 
-    rwpng_write_end(&info_ptr, &png_ptr, row_pointers, strip_alpha);
+    rwpng_write_end(&info_ptr, &png_ptr, row_pointers, row_filters, mainprog_ptr->height, strip_alpha);
 
     free(row_pointers);
     free(gray_data);

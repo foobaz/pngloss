@@ -78,8 +78,12 @@ typedef struct {
 
 void rwpng_version_info(FILE *fp);
 
-pngloss_error rwpng_read_image24(FILE *infile, png24_image *mainprog_ptr, bool strip, bool verbose);
-pngloss_error rwpng_write_image24(FILE *outfile, png24_image *mainprog_ptr);
+pngloss_error rwpng_read_image24(
+    FILE *infile, png24_image *mainprog_ptr, bool strip, bool verbose
+);
+pngloss_error rwpng_write_image24(
+    FILE *outfile, png24_image *mainprog_ptr, unsigned char *row_filters
+);
 void rwpng_free_image24(png24_image *);
 
 #endif

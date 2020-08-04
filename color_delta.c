@@ -21,7 +21,7 @@ void color_difference(
             difference[0] = d;
             difference[1] = d;
             difference[2] = d;
-            difference[3] = here_color[3] - back_color[3];
+            difference[3] = here_color[1] - back_color[1];
             break;
         case 3:
             // rgb
