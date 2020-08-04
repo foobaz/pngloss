@@ -117,7 +117,6 @@ void optimize_state_run(
 ) {
     int_fast16_t back_color[4];
     int_fast16_t here_color[4];
-    uint_fast8_t symbol_cost = 0;
     for (uint_fast8_t c = 0; c < image->bytes_per_pixel; c++) {
         uint32_t offset = state->x*image->bytes_per_pixel + c;
         back_color[c] = image->rows[state->y][offset];
@@ -231,12 +230,8 @@ void optimize_state_run(
 
         state->pixels[offset] = back_color[c];
 
-        uint32_t old_frequency = state->symbol_frequency[best_symbol];
         state->symbol_frequency[best_symbol]++;
-        uint32_t frequency = state->symbol_frequency[best_symbol];
         state->symbol_count++;
-        //uint_fast8_t cost = ulog2(state->symbol_count / frequency);
-        //symbol_cost += cost;
     }
 
     color_delta difference;
@@ -244,8 +239,6 @@ void optimize_state_run(
     diffuse_color_error(state, image, difference, bleed_divider);
 
     state->x++;
-
-    //return symbol_cost;
 }
 
 uint32_t optimize_state_row(
