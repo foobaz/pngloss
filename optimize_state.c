@@ -123,7 +123,6 @@ uintmax_t optimize_state_run(
     int_fast16_t here_color[4];
     int_fast16_t old_diag_color[4];
     int_fast16_t new_diag_color[4];
-    uint_fast8_t symbol_cost = 0;
     uintmax_t total_error = 0;
     for (uint_fast8_t c = 0; c < image->bytes_per_pixel; c++) {
         uint32_t offset = state->x*image->bytes_per_pixel + c;
@@ -256,7 +255,6 @@ uintmax_t optimize_state_run(
 
         total_error += (uintmax_t)diag_error;
 
-        uint32_t old_frequency = state->symbol_frequency[best_symbol];
         state->symbol_frequency[best_symbol]++;
         state->symbol_count++;
     }
