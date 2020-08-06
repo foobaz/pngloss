@@ -121,26 +121,40 @@ uintmax_t optimize_state_run(
 ) {
     int_fast16_t back_color[4];
     int_fast16_t here_color[4];
+    int_fast16_t original_color[4];
+    int_fast16_t old_above_color[4];
+    int_fast16_t new_above_color[4];
     int_fast16_t old_diag_color[4];
     int_fast16_t new_diag_color[4];
-    uintmax_t total_error = 0;
+    int_fast16_t old_left_color[4];
+    int_fast16_t new_left_color[4];
     for (uint_fast8_t c = 0; c < image->bytes_per_pixel; c++) {
         uint32_t offset = state->x*image->bytes_per_pixel + c;
-        back_color[c] = image->rows[state->y][offset];
+        original_color[c] = image->rows[state->y][offset];
+
         uint_fast8_t i = c;
-        unsigned char diag = 0, old_diag = 0, left = 0;
+        unsigned char above, old_above, diag = 0, old_diag = 0, left = 0, old_left = 0;
         if (state->y > 0) {
+            above = image->rows[state->y - 1][offset];
+            old_above = last_row_pixels[offset];
             if (state->x > 0) {
-                diag = image->rows[state->y-1][offset - image->bytes_per_pixel];
+                diag = image->rows[state->y - 1][offset - image->bytes_per_pixel];
                 old_diag = last_row_pixels[offset - image->bytes_per_pixel];
             }
         }
         if (state->x > 0) {
             left = state->pixels[offset - image->bytes_per_pixel];
+            old_left = image->rows[state->y][offset - image->bytes_per_pixel];
         }
-        int_fast16_t predicted = filter_predict(image, state->x, state->y, filter, c, left);
+        old_above_color[c] = old_above;
+        new_above_color[c] = above;
+        old_diag_color[c] = old_diag;
+        new_diag_color[c] = diag;
+        old_left_color[c] = old_left;
+        new_left_color[c] = left;
 
         unsigned char best_symbol;
+        int_fast16_t predicted = filter_predict(image, state->x, state->y, filter, c, left);
         if ((image->bytes_per_pixel % 2) == 0 && image->rows[state->y][state->x*image->bytes_per_pixel+image->bytes_per_pixel-1] == 0) {
             if (c == image->bytes_per_pixel-1) {
                 // leave fully transparent pixels fully transparent, symbol
@@ -163,15 +177,15 @@ uintmax_t optimize_state_run(
                 i = 3;
             }
             int_fast16_t color_error = state->color_error[state->x+dither_filter_width/2][i];
-            here_color[c] = back_color[c] + color_error;
+            here_color[c] = original_color[c] + color_error;
 
-            int_fast16_t original = back_color[c] - predicted;
-            if (original < -128) {
+            int_fast16_t original_symbol = original_color[c] - predicted;
+            if (original_symbol < -128) {
                 predicted -= 256;
-                original = back_color[c] - predicted;
-            } else if (original > 127) {
+                original_symbol = original_color[c] - predicted;
+            } else if (original_symbol > 127) {
                 predicted += 256;
-                original = back_color[c] - predicted;
+                original_symbol = original_color[c] - predicted;
             }
             int_fast16_t filtered = here_color[c] - predicted;
 
@@ -223,7 +237,7 @@ uintmax_t optimize_state_run(
                     if (best_close_freq < close_freq) {
                         new_best = true;
                     } else if (best_close_freq == close_freq) {
-                        if (symbol == original) {
+                        if (symbol == original_symbol) {
                             new_best = true;
                         }
                     }
@@ -243,32 +257,42 @@ uintmax_t optimize_state_run(
 
         state->pixels[offset] = back_color[c];
 
-        old_diag_color[c] = old_diag;
-        new_diag_color[c] = diag;
-
-        color_delta old_partial_diag, new_partial_diag;
-        color_difference(image->bytes_per_pixel, old_partial_diag, here_color, old_diag_color);
-        color_difference(image->bytes_per_pixel, new_partial_diag, back_color, new_diag_color);
-        color_d2 d2_diag;
-        color_delta_difference(new_partial_diag, old_partial_diag, d2_diag);
-        uint32_t diag_error = color_delta_distance(d2_diag);
-
-        total_error += (uintmax_t)diag_error;
-
         state->symbol_frequency[best_symbol]++;
         state->symbol_count++;
     }
 
+    // spread color error from this pixel to nearby pixels
     color_delta difference;
     color_difference(image->bytes_per_pixel, difference, back_color, here_color);
     diffuse_color_error(state, image, difference, bleed_divider);
 
+    // advance to next pixel
     state->x++;
 
-    // error can grow quite large, prevent from overflowing
-    total_error /= image->width * image->bytes_per_pixel;
-    // don't allow division to reduce to zero
-    total_error++;
+    // calculate derivative error from three neighboring pixels to weight row cost
+    color_delta old_partial_above, new_partial_above;
+    color_difference(image->bytes_per_pixel, old_partial_above, original_color, old_above_color);
+    color_difference(image->bytes_per_pixel, new_partial_above, back_color, new_above_color);
+    color_d2 d2_above;
+    color_delta_difference(new_partial_above, old_partial_above, d2_above);
+    uint32_t above_error = color_delta_distance(d2_above);
+
+    color_delta old_partial_diag, new_partial_diag;
+    color_difference(image->bytes_per_pixel, old_partial_diag, original_color, old_diag_color);
+    color_difference(image->bytes_per_pixel, new_partial_diag, back_color, new_diag_color);
+    color_d2 d2_diag;
+    color_delta_difference(new_partial_diag, old_partial_diag, d2_diag);
+    uint32_t diag_error = color_delta_distance(d2_diag);
+
+    color_delta old_partial_left, new_partial_left;
+    color_difference(image->bytes_per_pixel, old_partial_left, original_color, old_left_color);
+    color_difference(image->bytes_per_pixel, new_partial_left, back_color, new_left_color);
+    color_d2 d2_left;
+    color_delta_difference(new_partial_left, old_partial_left, d2_left);
+    uint32_t left_error = color_delta_distance(d2_left);
+
+    uintmax_t total_error = (uintmax_t)above_error + diag_error + left_error;
+
     return total_error;
 }
 
