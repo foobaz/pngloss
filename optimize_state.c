@@ -111,19 +111,33 @@ void optimize_state_copy(
     to->symbol_count = from->symbol_count;
 }
 
-void optimize_state_run(
-    optimize_state *state, pngloss_image *image, pngloss_filter filter,
-    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
+uintmax_t optimize_state_run(
+    optimize_state *state,
+    pngloss_image *image,
+    unsigned char *last_row_pixels,
+    pngloss_filter filter,
+    uint_fast8_t quantization_strength,
+    int_fast16_t bleed_divider
 ) {
     int_fast16_t back_color[4];
     int_fast16_t here_color[4];
+    int_fast16_t old_diag_color[4];
+    int_fast16_t new_diag_color[4];
+    uint_fast8_t symbol_cost = 0;
+    uintmax_t total_error = 0;
     for (uint_fast8_t c = 0; c < image->bytes_per_pixel; c++) {
         uint32_t offset = state->x*image->bytes_per_pixel + c;
         back_color[c] = image->rows[state->y][offset];
         uint_fast8_t i = c;
-        unsigned char left = 0;
+        unsigned char diag = 0, old_diag = 0, left = 0;
+        if (state->y > 0) {
+            if (state->x > 0) {
+                diag = image->rows[state->y-1][offset - image->bytes_per_pixel];
+                old_diag = last_row_pixels[offset - image->bytes_per_pixel];
+            }
+        }
         if (state->x > 0) {
-            left = state->pixels[offset-image->bytes_per_pixel];
+            left = state->pixels[offset - image->bytes_per_pixel];
         }
         int_fast16_t predicted = filter_predict(image, state->x, state->y, filter, c, left);
 
@@ -230,6 +244,19 @@ void optimize_state_run(
 
         state->pixels[offset] = back_color[c];
 
+        old_diag_color[c] = old_diag;
+        new_diag_color[c] = diag;
+
+        color_delta old_partial_diag, new_partial_diag;
+        color_difference(image->bytes_per_pixel, old_partial_diag, here_color, old_diag_color);
+        color_difference(image->bytes_per_pixel, new_partial_diag, back_color, new_diag_color);
+        color_d2 d2_diag;
+        color_delta_difference(new_partial_diag, old_partial_diag, d2_diag);
+        uint32_t diag_error = color_delta_distance(d2_diag);
+
+        total_error += (uintmax_t)diag_error;
+
+        uint32_t old_frequency = state->symbol_frequency[best_symbol];
         state->symbol_frequency[best_symbol]++;
         state->symbol_count++;
     }
@@ -239,21 +266,34 @@ void optimize_state_run(
     diffuse_color_error(state, image, difference, bleed_divider);
 
     state->x++;
+
+    // error can grow quite large, prevent from overflowing
+    total_error /= image->width * image->bytes_per_pixel;
+    // don't allow division to reduce to zero
+    total_error++;
+    return total_error;
 }
 
-uint32_t optimize_state_row(
-    optimize_state *state, pngloss_image *image, pngloss_filter filter,
+uintmax_t optimize_state_row(
+    optimize_state *state,
+    pngloss_image *image,
+    unsigned char *last_row_pixels,
+    pngloss_filter filter,
     uint_fast8_t quantization_strength,
-    int_fast16_t bleed_divider, bool adaptive
+    int_fast16_t bleed_divider,
+    bool adaptive
 ) {
+    uintmax_t total_error = 0;
     while (state->x < image->width) {
-        optimize_state_run(
+        uintmax_t error = optimize_state_run(
             state,
             image,
+            last_row_pixels,
             filter,
             quantization_strength,
             bleed_divider
         );
+        total_error += error;
     }
 
     unsigned char *above_row = NULL;
@@ -264,7 +304,7 @@ uint32_t optimize_state_row(
     if (adaptive) {
         uint_fast8_t adaptive_filter = adaptive_filter_for_rows(image, above_row, state->pixels);
         if (filter != adaptive_filter) {
-            return -1;
+            return UINTMAX_MAX;
         }
     }
 
@@ -299,7 +339,8 @@ uint32_t optimize_state_row(
     state->x = 0;
     state->y++;
 
-    return total_cost;
+    //fprintf(stderr, "cost %u error %u\n", (unsigned int)total_cost, (unsigned int)total_error);
+    return total_error * total_cost;
 }
 
 unsigned char filter_predict(

@@ -34,14 +34,22 @@ void optimize_state_copy(
     optimize_state *from,
     pngloss_image *image
 );
-void optimize_state_run(
-    optimize_state *state, pngloss_image *image, pngloss_filter filter,
-    uint_fast8_t quantization_strength, int_fast16_t bleed_divider
-);
-uint32_t optimize_state_row(
-    optimize_state *state, pngloss_image *image,pngloss_filter filter,
+uintmax_t optimize_state_run(
+    optimize_state *state,
+    pngloss_image *image,
+    unsigned char *last_row_pixels,
+    pngloss_filter filter,
     uint_fast8_t quantization_strength,
-    int_fast16_t bleed_divider, bool adaptive
+    int_fast16_t bleed_divider
+);
+uintmax_t optimize_state_row(
+    optimize_state *state,
+    pngloss_image *image,
+    unsigned char *last_row_pixels,
+    pngloss_filter filter,
+    uint_fast8_t quantization_strength,
+    int_fast16_t bleed_divider,
+    bool adaptive
 );
 unsigned char filter_predict(
     pngloss_image *image, uint32_t x, uint32_t y,

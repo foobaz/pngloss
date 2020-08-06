@@ -200,7 +200,7 @@ pngloss_error optimize_image(
         suseconds_t old_dsec = 0;
         while (state.y < image->height) {
             uint32_t current_y = state.y;
-            uint32_t best_cost = -1;
+            uintmax_t best_cost = UINTMAX_MAX;
             uint_fast8_t best_strength = 0;
             uint_fast8_t best_filter = 0;
             bool found_best = false;
@@ -210,7 +210,7 @@ pngloss_error optimize_image(
             bool adaptive = (!row_filters || !current_y);
             while (!found_best) {
             //for (uint_fast8_t strength = 0; strength <= quantization_strength; strength++)
-                for (pngloss_filter filter = 0; filter < pngloss_filter_count - 1; filter++) {
+                for (pngloss_filter filter = 0; filter < pngloss_filter_count; filter++) {
                     if (verbose) {
                         // print progress display
                         int err;
@@ -238,16 +238,17 @@ pngloss_error optimize_image(
 
                     // get to work
                     optimize_state_copy(&filter_state, &state, image);
-                    uint32_t cost = optimize_state_row(
+                    uintmax_t cost = optimize_state_row(
                         &filter_state,
                         image,
+                        last_row_pixels,
                         filter,
                         strength,
                         bleed_divider,
                         adaptive
                     );
                     /*
-                    fprintf(stderr, "filter %u costs %u\n", (unsigned int)filter, (unsigned int)cost);
+                    fprintf(stderr, "filter %u costs %lu\n", (unsigned int)filter, (unsigned long)cost);
                     if (cost < (uint32_t)-1) {
                         fprintf(stderr, "filter %u costs %u\n", (unsigned int)filter, (unsigned int)cost);
                     }
