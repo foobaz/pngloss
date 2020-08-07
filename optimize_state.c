@@ -155,20 +155,13 @@ uintmax_t optimize_state_run(
 
         unsigned char best_symbol;
         int_fast16_t predicted = filter_predict(image, state->x, state->y, filter, c, left);
-        if ((image->bytes_per_pixel % 2) == 0 && image->rows[state->y][state->x*image->bytes_per_pixel+image->bytes_per_pixel-1] == 0) {
-            if (c == image->bytes_per_pixel-1) {
-                // leave fully transparent pixels fully transparent, symbol
-                // is expensive but artifacts are unacceptable otherwise
-                here_color[c] = 0;
-                back_color[c] = 0;
-                best_symbol = 0 - predicted;
-            } else {
-                // color of fully transparent pixel doesn't matter and using
-                // zero symbol to get predicted color minimizes file size
-                here_color[c] = predicted;
-                back_color[c] = predicted;
-                best_symbol = 0;
-            }
+        if ((image->bytes_per_pixel % 2) == 0 && image->rows[state->y][state->x*image->bytes_per_pixel+image->bytes_per_pixel-1] == 0 && c == image->bytes_per_pixel - 1) {
+        //if ((image->bytes_per_pixel % 2) == 0 && image->rows[state->y][state->x*image->bytes_per_pixel+image->bytes_per_pixel-1] == 0) {
+            // leave fully transparent pixels fully transparent, symbol
+            // is expensive but artifacts are unacceptable otherwise
+            here_color[c] = 0;
+            back_color[c] = 0;
+            best_symbol = 0 - predicted;
         } else {
             // convert from pixel index to color delta index
             if (image->bytes_per_pixel == 2 && c == 1) {
@@ -362,7 +355,8 @@ uintmax_t optimize_state_row(
     state->y++;
 
     //fprintf(stderr, "cost %u error %u\n", (unsigned int)total_cost, (unsigned int)total_error);
-    return total_error * total_cost;
+    return (total_error + 1) * total_cost;
+    //return total_cost;
 }
 
 unsigned char filter_predict(
