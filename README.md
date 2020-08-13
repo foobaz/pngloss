@@ -84,5 +84,15 @@ Display usage information.
 ### Examples
 | Original | -s 20 | -s 40 |
 | :------: | :---: | :---: |
-| ![David, original](http://frammish.org/pngloss/david.png) | ![David, s20](http://frammish.org/pngloss/david-s40.png) | ![David, s40](http://frammish.org/pngloss/david-s40.png) |
+| ![David, original](http://frammish.org/pngloss/david.png) | ![David, s20](http://frammish.org/pngloss/david-s20.png) | ![David, s40](http://frammish.org/pngloss/david-s40.png) |
 | 18kB | 7kB (42%) | 5kB (26%) |
+
+| Original | -s 20 | -s 40 |
+| :------: | :---: | :---: |
+| ![Lena, original](http://frammish.org/pngloss/lena.png) | ![Lena, s20](http://frammish.org/pngloss/lena-s20.png) | ![Lena, s40](http://frammish.org/pngloss/lena-s40.png) |
+| 475kB | 68kB (14%) | 35kB (7%) |
+
+| Original | -s 20 | -s 40 |
+| :------: | :---: | :---: |
+| ![Tenko, original](http://frammish.org/pngloss/tenko.png) | ![Tenko, s20](http://frammish.org/pngloss/tenko-s20.png) | ![Tenko, s40](http://frammish.org/pngloss/tenko-s40.png) |
+| 234kB | 50kB (21%) | 31kB (13%) |
