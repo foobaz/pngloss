@@ -1,4 +1,4 @@
-.Dd 2013-02-25
+.Dd 2020-07-12
 .Dt pngloss 1
 .Sh NAME
 .Nm pngloss
@@ -32,7 +32,7 @@ It performs poorly on images with few colors or images with areas of flat color,
 .It Fl s Ar N , Fl Fl strength Ar N
 .Cm 0
 (lossless) to
-.Cm 255
+.Cm 85
 (extreme).
 The default is
 .Cm 26 .
@@ -93,7 +93,7 @@ The compressed image will be saved as
 .Pa image-loss.png ,
 even if image-loss.png already exists.
 .Pp
-Compress image in-place, but only if it can be reduced without too much quality loss:
+Lightly compress image in-place, overwriting original file:
 .Bd -ragged -offset indent
 .Nm
 .Cm -f -s10 --ext .png --skip-if-larger image.png
