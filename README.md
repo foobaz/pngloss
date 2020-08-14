@@ -30,6 +30,15 @@ filters for each row, keeping whichever has the best quality/size ratio.
 - Explicitly tell libpng which filter to use for each row instead of hoping
 its adaptive filter selection algorithm will choose the correct one.
 
+### Installation
+
+    git clone https://github.com/foobaz/pngloss.git
+    cd pngloss
+    make
+    sudo make install
+
+There is no configure script. The only dependency is libpng. The makefile installs the binary to `/usr/local/bin/pngloss` and the man page to `/usr/local/share/man/man1/pngloss.1`.
+
 ### Synopsis
 
 `pngloss [options] <file> [<file>...]`
