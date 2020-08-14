@@ -6,6 +6,7 @@ LDFLAGS = -L/usr/local/lib -lpng
 VERSION = 0.6
 
 BIN ?= pngloss
+DESTDIR ?= /usr/local
 BINPREFIX ?= $(DESTDIR)$(PREFIX)/bin
 MANPREFIX ?= $(DESTDIR)$(PREFIX)/share/man
 
