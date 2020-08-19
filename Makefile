@@ -10,7 +10,7 @@ DESTDIR ?= /usr/local
 BINPREFIX ?= $(DESTDIR)$(PREFIX)/bin
 MANPREFIX ?= $(DESTDIR)$(PREFIX)/share/man
 
-OBJS = color_delta.o optimize_state.o pngloss_image.o pngloss_opts.o pngloss.o rwpng.o
+OBJS = src/color_delta.o src/optimize_state.o src/pngloss_image.o src/pngloss_opts.o src/pngloss.o src/rwpng.o
 
 DISTFILES = pngloss.1 Makefile README.md COPYRIGHT
 TARNAME = pngloss-$(VERSION)
