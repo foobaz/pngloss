@@ -36,7 +36,7 @@ char *PNGLOSS_USAGE = "\
 usage:  pngloss [options] -- pngfile [pngfile ...]\n\
         pngloss [options] - >stdout <stdin\n\n\
 options:\n\
-  -s, --strength 26 how much quality to sacrifice, from 0 to 100 (default 26)\n\
+  -s, --strength 19 how much quality to sacrifice, from 0 to 100 (default 19)\n\
   -b, --bleed 2     bleed divider, from 1 (full dithering) to 32767 (none)\n\
   -f, --force       overwrite existing output files\n\
   -o, --output file destination file path to use instead of --ext\n\
@@ -107,7 +107,7 @@ static pngloss_error pngloss_file_internal(const char *filename, const char *out
 int main(int argc, char *argv[])
 {
     struct pngloss_options options = {
-        .strength = 26,
+        .strength = 19,
         .bleed_divider = 2
     };
 

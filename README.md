@@ -46,7 +46,7 @@ There is no configure script. The only dependency is libpng. The makefile instal
 ### Options
 
 `-s`, `--strength`
-How much quality to sacrifice, from 0 to 85 (default 26). Strength 0 is
+How much quality to sacrifice, from 0 to 85 (default 19). Strength 0 is
 lossless and does not modify the pixel data, although it may convert
 colorspace or strip PNG chunks. The maximum is 85 because the algorithm
 needs at least three symbols to perform well and 256 / 3 ~= 85. One symbol
