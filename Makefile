@@ -3,7 +3,7 @@
 CC ?= /usr/bin/cc
 CFLAGS = -O3 -Wall -Wextra -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lpng
-VERSION = 0.6
+VERSION = 1.0
 
 BIN ?= pngloss
 DESTDIR ?= /usr/local

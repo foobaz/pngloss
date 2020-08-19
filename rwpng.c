@@ -26,12 +26,6 @@
 #define Z_BEST_SPEED 1
 #endif
 
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#define omp_get_max_threads() 1
-#endif
-
 #if PNG_LIBPNG_VER < 10400
 #error libpng version 1.4 or later is required. 1.6 is recommended. You have an obsolete version of libpng or compiling on an outdated/unsupported operating system. Please upgrade.
 #endif
@@ -379,11 +373,8 @@ static pngloss_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainpr
         cmsHTRANSFORM hTransform = cmsCreateTransform(hInProfile, TYPE_RGBA_8,
                                                       hOutProfile, TYPE_RGBA_8,
                                                       INTENT_PERCEPTUAL,
-                                                      omp_get_max_threads() > 1 ? cmsFLAGS_NOCACHE : 0);
+                                                      0);
 
-        #pragma omp parallel for \
-            if (mainprog_ptr->height*mainprog_ptr->width > 8000) \
-            schedule(static)
         for (unsigned int i = 0; i < mainprog_ptr->height; i++) {
             /* It is safe to use the same block for input and output,
                when both are of the same TYPE. */

@@ -21,13 +21,6 @@
 #  include <unistd.h>
 #endif
 
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#define omp_get_max_threads() 1
-#define omp_get_thread_num() 0
-#endif
-
 #include "pngloss_image.h"
 #include "pngloss_opts.h"
 #include "rwpng.h"  /* typedefs, common macros, public prototypes */
@@ -57,7 +50,7 @@ compressed image will go to stdout).  If you pass the special output path\n\
 compressed image will go to stdout. The default behavior if the output\n\
 file exists is to skip the conversion; use --force to overwrite.\n";
 
-char *PNGLOSS_VERSION = "0.6";
+char *PNGLOSS_VERSION = "1.0";
 
 static pngloss_error prepare_output_image(png24_image *input_image, rwpng_color_transform tag, png24_image *output_image);
 static pngloss_error read_image(const char *filename, bool using_stdin, png24_image *input_image_p, bool strip, bool verbose);
@@ -67,14 +60,8 @@ static bool file_exists(const char *outname);
 
 void pngloss_internal_print_config(FILE *fd) {
     fputs(""
-        #ifndef NDEBUG
-                    "   WARNING: this is a DEBUG (slow) version.\n" /* NDEBUG disables assert() */
-        #endif
         #if !USE_SSE && (defined(__SSE__) || defined(__amd64__) || defined(__X86_64__) || defined(__i386__))
                     "   SSE acceleration disabled.\n"
-        #endif
-        #if _OPENMP
-                    "   Compiled with OpenMP (multicore support).\n"
         #endif
     , fd);
     fflush(fd);
@@ -180,37 +167,12 @@ int main(int argc, char *argv[])
 // Don't use this. This is not a public API.
 pngloss_error pngloss_main_internal(struct pngloss_options *options)
 {
-#ifdef _OPENMP
-    // if there's a lot of files, coarse parallelism can be used
-    if (options->num_files > 2*omp_get_max_threads()) {
-        omp_set_nested(0);
-        omp_set_dynamic(1);
-    } else {
-        omp_set_nested(1);
-    }
-#endif
-
     unsigned int error_count = 0, skipped_count = 0, file_count = 0;
     pngloss_error latest_error = SUCCESS;
 
-    #pragma omp parallel for \
-        schedule(static, 1) reduction(+:skipped_count) reduction(+:error_count) reduction(+:file_count) shared(latest_error)
     for (unsigned int i = 0; i < options->num_files; i++) {
         const char *filename = options->using_stdin ? "stdin" : options->files[i];
         struct pngloss_options opts = *options;
-
-
-        #ifdef _OPENMP
-        struct buffered_log buf = {0};
-        if (opts.log_callback && omp_get_num_threads() > 1 && opts.num_files > 1) {
-            liq_set_log_callback(local_liq, log_callback_buferred, &buf);
-            liq_set_log_flush_callback(local_liq, log_callback_buferred_flush, &buf);
-            opts.log_callback = log_callback_buferred;
-            opts.log_callback_user_info = &buf;
-        }
-        #endif
-
-
         pngloss_error retval = SUCCESS;
 
         const char *outname = opts.output_file_path;
@@ -232,10 +194,7 @@ pngloss_error pngloss_main_internal(struct pngloss_options *options)
         free(outname_free);
 
         if (retval) {
-            #pragma omp critical
-            {
-                latest_error = retval;
-            }
+            latest_error = retval;
             if (retval == TOO_LOW_QUALITY || retval == TOO_LARGE_FILE) {
                 skipped_count++;
             } else {
@@ -445,10 +404,7 @@ static pngloss_error write_image(png24_image *output_image24, unsigned char *row
     }
 
     pngloss_error retval;
-    #pragma omp critical (libpng)
-    {
-        retval = rwpng_write_image24(outfile, output_image24, row_filters);
-    }
+    retval = rwpng_write_image24(outfile, output_image24, row_filters);
 
     if (!options->using_stdout) {
         fclose(outfile);
@@ -487,10 +443,7 @@ static pngloss_error read_image(const char *filename, bool using_stdin, png24_im
     }
 
     pngloss_error retval;
-    #pragma omp critical (libpng)
-    {
-        retval = rwpng_read_image24(infile, input_image_p, strip, verbose);
-    }
+    retval = rwpng_read_image24(infile, input_image_p, strip, verbose);
 
     if (!using_stdin) {
         fclose(infile);
