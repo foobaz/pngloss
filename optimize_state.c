@@ -133,7 +133,7 @@ uintmax_t optimize_state_run(
         original_color[c] = image->rows[state->y][offset];
 
         uint_fast8_t i = c;
-        unsigned char above, old_above, diag = 0, old_diag = 0, left = 0, old_left = 0;
+        unsigned char above = 0, old_above = 0, diag = 0, old_diag = 0, left = 0, old_left = 0;
         if (state->y > 0) {
             above = image->rows[state->y - 1][offset];
             old_above = last_row_pixels[offset];
@@ -355,8 +355,9 @@ uintmax_t optimize_state_row(
     state->y++;
 
     //fprintf(stderr, "cost %u error %u\n", (unsigned int)total_cost, (unsigned int)total_error);
-    return (total_error + 1) * total_cost;
     //return total_cost;
+    //return (total_error + 1) * total_cost;
+    return total_error / 128 + total_cost;
 }
 
 unsigned char filter_predict(
