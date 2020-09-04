@@ -3,110 +3,7 @@
   <head>
     <meta name="description" content="Lossy PNG compression to shrink your PNG images"/>
     <title>pngloss</title>
-    <style>
-      body {
-        width: 782px;
-        margin: 0 auto;
-        background: #ccc;
-        color: #000;
-        font-size: 14px;
-        font-family: Tahoma, Arial, Verdana, Meiryo, "MS Gothic", sans-serif, Lucida Sans;
-        line-height: 1.2em;
-        text-align: center;
-      }
-      .all-page {
-        position: relative;
-        width: 690px;
-        margin: 15px auto;
-        padding: 10px 30px 15px 30px;
-        background: #eee;
-        border: 2px solid #999;
-        border-radius: 8px;
-        text-align: left;
-      }
-      .all-page:after { 
-        content: ""; 
-        position: absolute;
-        left: -1px;
-        top: -1px;
-        width: 100%;
-        height: 100%;
-        height: calc(100% - 2px);
-        padding: 0 1px; 
-        box-shadow: 0px 5px 8px #bbb; 
-        z-index: -1; 
-      } /*for crop shadow bottom for 4px (2px from border and 2px from calc)*/
-      /* L63 */
-      .main-title {
-        font-size: 2em;
-        font-weight: bold;
-        margin: 0.4em 0;
-        white-space: nowrap;
-        display: inline-block;
-      }
-      p {
-        margin: 0.4em 0;
-      }
-      p.margin1 {
-        margin: 0.9em 0;
-      }
-      .blue-link {
-        color: #36b;
-      }
-      .gray-link {
-        color: #999;
-      }
-      .option-box {
-        margin: 0.5em 0;
-        white-space: nowrap;
-      }
-      .option-left {
-        display: inline-block;
-        width: 220px;
-        color: #707070;
-        font-weight: bold;
-      }
-      .option-left-small {
-        font-size: 0.8em;
-        line-height: 1.5em;
-      }
-      .option-right {
-        display: inline-block;
-        white-space: normal;
-        vertical-align: top;
-      }
-      .option-right-small {
-        margin-top: 2px;
-        font-size: 0.9em;
-      }
-      #url {
-        width: 300px;
-        height: 23px;
-        padding: 0 3px;
-        border: 1px solid #b0b0b0;
-      }
-      label {
-        margin: 0 5px 0 0;
-        padding: 0;
-        cursor: pointer;
-      }
-      .radio {
-        margin: 0 4px 0 0;
-        padding: 0;
-        cursor: pointer;
-        vertical-align: middle;
-      }
-      .r-text {
-        vertical-align: middle;
-      }
-      .radio:checked + .r-text {
-        color: #494;
-      }
-      /* L196 */
-      .address {
-        text-align: center;
-      }
-    </style>
+    <link rel="stylesheet" type="text/css" href="style.css">
   </head>
   <body>
     <div class="all-page">
@@ -115,14 +12,14 @@
       <p>Lossy PNG compression to shrink PNG file size by reducing image quality.</p>
       <p class="margin1 link-box">
         <a href="https://frammish.org/pngloss/tenko-s40.png" class="blue-link" target="_blank">
-          Show full demonstration
+          Show demonstration
         </a>
         | 
         <a href="https://github.com/foobaz/pngloss" class="blue-link" target="_blank">
           Go to GitHub
         </a>
       </p>
-      <form action="/cgi-bin/pngloss.cgi" method="POST" enctype="multipart/form-data" target="_blank">
+      <form action="/cgi-bin/pngloss/compress.cgi" method="POST" enctype="multipart/form-data">
         <div class="option-box first">
           <div class="option-left">Image Choice:</div>
           <div class="option-right">
@@ -131,7 +28,7 @@
               Or choose a file: 
               <input type="file" id="file" name="file"></div>
           </div>
-          <div class="option-hint file_limits">
+          <div class="option-hint">
             Limits: Size: 5MB, Resolution: 3000x3000px.
           </div>
         </div>
