@@ -159,6 +159,7 @@ func (h *PageHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reques
 
 		processPart(part, maxLengths, buffers)
 	}
+	//fmt.Printf("parsed %d parts\n", len(buffers))
 
 	sum := []byte(nil)
 	encodedSum := ""
@@ -242,8 +243,10 @@ func (h *PageHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
+	//fmt.Printf("width %d, height %d\n", config.Width, config.Height)
 	if config.Width > 3000 || config.Height > 3000 {
-		http.Error(writer, "png too large", http.StatusBadRequest)
+		fmt.Printf("png too large\n")
+		http.Error(writer, "png too large", http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -575,11 +578,6 @@ var pageMarkup = `<!DOCTYPE html>
   </head>
   <body>
     <div class="all-page">
-      <p class="margin1 link-box">
-        <a href="/pngloss/" class="blue-link">
-          Start Over
-        </a>
-      </p>
       <form action="/cgi-bin/pngloss/compress.cgi" method="POST" enctype="multipart/form-data">
         <input type="hidden" name="sum224" value="{{.sum224}}">
         <div class="option-box">
@@ -638,6 +636,10 @@ var pageMarkup = `<!DOCTYPE html>
         </div>
 
         <input id="submit-button" type="submit" class="button" value="Compress Again">
+        |
+        <a href="/pngloss/" class="blue-link">
+          Start Over
+        </a>
       </form>
     </div>
     <p class="margin1 link-box">
