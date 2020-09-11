@@ -1,0 +1,126 @@
+body {
+  margin: 0 auto;
+  background: #ccc;
+  color: #000;
+  font-size: 14px;
+  font-family: Tahoma, Arial, Verdana, Meiryo, "MS Gothic", sans-serif, Lucida Sans;
+  line-height: 1.2em;
+  text-align: center;
+}
+.all-page {
+  position: relative;
+  width: 560px;
+  margin: 15px auto;
+  padding: 10px 30px 15px 30px;
+  background: #eee;
+  border: 2px solid #999;
+  border-radius: 8px;
+  text-align: left;
+}
+.all-page:after { 
+  content: ""; 
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  width: 100%;
+  height: 100%;
+  height: calc(100% - 2px);
+  padding: 0 1px; 
+  box-shadow: 0px 5px 8px #bbb; 
+  z-index: -1; 
+} /*for crop shadow bottom for 4px (2px from border and 2px from calc)*/
+.main-title {
+  font-size: 2em;
+  font-weight: bold;
+  margin: 0.4em 0;
+  white-space: nowrap;
+  display: inline-block;
+}
+p {
+  margin: 0.4em 0;
+}
+p.margin1 {
+  margin: 0.9em 0;
+}
+.blue-link {
+  color: #36b;
+}
+.gray-link {
+  color: #999;
+}
+.option-box {
+  margin: 0.5em 0;
+  white-space: nowrap;
+}
+.option-left {
+  display: inline-block;
+  width: 220px;
+  color: #707070;
+  font-weight: bold;
+}
+.option-left-small {
+  font-size: 0.8em;
+  line-height: 1.5em;
+}
+.option-right {
+  display: inline-block;
+  white-space: normal;
+  vertical-align: top;
+}
+.option-right-small {
+  margin-top: 2px;
+  font-size: 0.9em;
+}
+.option-hint {
+  margin: 0.5em 0;
+  color: #888;
+  font-size: 0.85em;
+  line-height: 1.2em;
+  white-space: normal;
+}
+#url {
+  width: 300px;
+  height: 23px;
+  padding: 0 3px;
+  border: 1px solid #b0b0b0;
+}
+label {
+  margin: 0 5px 0 0;
+  padding: 0;
+  cursor: pointer;
+}
+.radio {
+  margin: 0 4px 0 0;
+  padding: 0;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.r-text {
+  vertical-align: middle;
+}
+.radio:checked + .r-text {
+  color: #494;
+}
+input {
+  font-family: inherit;
+}
+.button {
+  min-width: 160px;
+  height: 26px;
+  margin: 0 10px 3px 0;
+  padding-bottom: 1px;
+  background: #f2f2f2;
+  background-image: linear-gradient(to bottom, #f9f9f9, #dadada);
+  border: 1px solid #999;
+  border-radius: 1px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.button:hover:enabled {
+  background: #f7f7f7;
+  background-image: linear-gradient(to bottom, #fefefe, #e2e2e2); 
+}
+.address {
+  text-align: center;
+}
+

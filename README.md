@@ -2,8 +2,10 @@ pngloss
 =======
 
 Lossily compress your PNG images with pngloss. The program reads the original
-PNG file, modifies the pixels to make them more compressible, and writes a new
-file with the extension -loss.png.
+PNG file and modifies the pixels to make them more compressible.  The
+resulting PNGs are fully backwards compatible with existing PNG encoders.  You
+can use the command line tool on your own machine, or compress images using
+[the interactive website](https://frammish.org/pngloss/).
 
 The compression technique relies on making small adjustments to pixel colors.
 It works best on true-color images with a wide variety of colors, like
