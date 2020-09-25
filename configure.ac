@@ -1,6 +1,7 @@
-AC_INIT(pngloss, 1.0.1)
-AM_INIT_AUTOMAKE([subdir-objects])
+AC_INIT([pngloss], [1.0.1])
+AM_INIT_AUTOMAKE()
+AM_MAINTAINER_MODE
 AC_PROG_CC
-PKG_CHECK_MODULES(libpng, libpng)
-AC_CONFIG_FILES([Makefile])
+PKG_CHECK_MODULES([libpng], [libpng])
+AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT
