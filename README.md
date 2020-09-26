@@ -36,10 +36,11 @@ its adaptive filter selection algorithm will choose the correct one.
 
     git clone https://github.com/foobaz/pngloss.git
     cd pngloss
+    ./configure
     make
     sudo make install
 
-There is no configure script. The only dependency is libpng. The makefile installs the binary to `/usr/local/bin/pngloss` and the man page to `/usr/local/share/man/man1/pngloss.1`.
+The only dependency is libpng.
 
 ### Synopsis
 
