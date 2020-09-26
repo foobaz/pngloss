@@ -123,4 +123,6 @@ input {
 .address {
   text-align: center;
 }
-
+th, td {
+  text-align: center;
+}
