@@ -3,7 +3,7 @@ pngloss
 
 Lossily compress your PNG images with pngloss. The program reads the original
 PNG file and modifies the pixels to make them more compressible.  The
-resulting PNGs are fully backwards compatible with existing PNG encoders.  You
+resulting PNGs are fully backwards compatible with existing PNG decoders.  You
 can use the command line tool on your own machine, or compress images using
 [the interactive website](https://frammish.org/pngloss/).
 
